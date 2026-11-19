@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor P as Paciente
+    participant T as Área do paciente
+    participant C as Controlador (app.py)
+    participant K as Consulta (models.py)
+    participant DB as Banco SQLite
+    P->>T: abre "Minhas consultas"
+    T->>C: GET /minha-area
+    C->>C: paciente_required (verifica perfil)
+    C->>DB: SELECT consultas WHERE paciente_id = id do paciente logado
+    DB-->>C: somente as consultas dele (50 por página)
+    C-->>T: lista com status
+    P->>T: escolhe profissional e dia e clica em Ver horários
+    T->>C: GET /minha-area/agendar?profissional_id&data
+    C->>DB: SELECT consultas do profissional e do paciente no dia
+    DB-->>C: horários já ocupados
+    C-->>T: grade de 30 em 30 min (livres e "Ocupado")
+    P->>T: escolhe um horário livre e clica em Agendar
+    T->>C: POST /minha-area/agendar
+    C->>K: Consulta(paciente = o próprio, duração 30 min)
+    C->>C: validar_agendamento() (mesmas regras da recepção)
+    C->>DB: SELECT consultas do profissional e do paciente no dia
+    DB-->>C: consultas existentes
+    alt sem erros e sem conflito
+        C->>DB: INSERT INTO consulta (..., status = 'agendada')
+        C-->>T: "Consulta agendada com sucesso"
+    else passado, fora do expediente ou conflito
+        C-->>T: mensagem de erro
+    end
+    T-->>P: mostra resultado
+    Note over P,DB: Cancelar: POST /minha-area/consultas/{id}/cancelar → só se a consulta for dele, agendada e ainda não começou<br/>Meus dados: altera só telefone, e-mail e endereço. Telas da clínica respondem 403 ao paciente

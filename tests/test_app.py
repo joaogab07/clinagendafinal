@@ -529,3 +529,40 @@ def test_esqueceu_a_senha_simulado(client):
         assert "enviamos um link" in r.get_data(as_text=True)
     # a senha não muda: é só uma simulação
     assert "Olá, Administrador" in entrar(client).get_data(as_text=True)
+
+
+
+def test_grade_de_horarios_do_paciente(client):
+    # a recepção marca o Dr. Bruno (id 2) amanhã das 10:00 às 10:45 para outro paciente
+    entrar(client)
+    novo_paciente(client)
+    client.post("/consultas/nova", data={"paciente_id": "1", "profissional_id": "2",
+                                         "data_hora": amanha("10:00"), "duracao_min": "45"})
+    client.get("/logout")
+    client.post("/cadastro", data=conta_paciente())
+    dia = amanha("00:00")[:10]
+    h = client.get("/minha-area/agendar", query_string={"profissional_id": "2", "data": dia}).get_data(as_text=True)
+    # 10:00 e 10:30 aparecem ocupados (a consulta de 45 min avança sobre 10:30); 11:00 está livre
+    assert f'value="{dia}T10:00"' not in h and f'value="{dia}T10:30"' not in h
+    assert f'value="{dia}T11:00"' in h and "Ocupado" in h
+    # primeiro e último horários do expediente (a última consulta termina às 20:00)
+    assert f'value="{dia}T07:00"' in h and f'value="{dia}T19:30"' in h and f'value="{dia}T20:00"' not in h
+    # outro profissional no mesmo dia: 10:00 livre
+    h3 = client.get("/minha-area/agendar", query_string={"profissional_id": "3", "data": dia}).get_data(as_text=True)
+    assert f'value="{dia}T10:00"' in h3
+    # agenda um horário livre e ele passa a aparecer como "Você já tem consulta" com outro profissional
+    r = client.post("/minha-area/agendar", follow_redirects=True,
+                    data={"profissional_id": "3", "data": dia, "data_hora": f"{dia}T11:00"})
+    assert "Consulta agendada" in r.get_data(as_text=True)
+    h = client.get("/minha-area/agendar", query_string={"profissional_id": "2", "data": dia}).get_data(as_text=True)
+    assert f'value="{dia}T11:00"' not in h and "Você já tem consulta" in h
+    # mesmo mandando um horário ocupado por fora da tela, o sistema recusa
+    r = client.post("/minha-area/agendar", follow_redirects=True,
+                    data={"profissional_id": "2", "data": dia, "data_hora": f"{dia}T10:30"})
+    assert "profissional já tem consulta" in r.get_data(as_text=True)
+    # data passada ou inválida
+    ontem = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    assert "a partir de hoje" in client.get("/minha-area/agendar", query_string={
+        "profissional_id": "2", "data": ontem}).get_data(as_text=True)
+    assert "Data inválida" in client.get("/minha-area/agendar", query_string={
+        "profissional_id": "2", "data": "abc"}).get_data(as_text=True)

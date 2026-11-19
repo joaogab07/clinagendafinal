@@ -14,7 +14,7 @@ Funcionalidades (CRUD completo):
 
 - **Autenticação** com três perfis: Administrador, Recepção e Paciente. Cada perfil só acessa as telas permitidas a ele
 - **Criar conta (paciente)**: o paciente se cadastra pela tela de login informando nome, CPF, data de nascimento, telefone, login e senha. Se a clínica já tiver o cadastro daquele CPF e a data de nascimento conferir, a conta é ligada a ele. O sistema avisa, enquanto a pessoa digita, se o login já pertence a outro usuário
-- **Área do paciente**: o paciente vê as próprias consultas, agenda uma nova (30 minutos, com as mesmas regras da recepção), cancela as suas que ainda não começaram e atualiza telefone, e-mail e endereço. Ele não acessa nenhuma tela da clínica
+- **Área do paciente**: o paciente vê as próprias consultas, agenda uma nova escolhendo o profissional, o dia e um horário livre numa grade de 30 em 30 minutos (os horários já ocupados aparecem riscados com a palavra "Ocupado" e não podem ser escolhidos), cancela as suas que ainda não começaram e atualiza telefone, e-mail e endereço. Ele não acessa nenhuma tela da clínica
 - **Usuários** (somente administrador): lista as contas, cria contas de Recepção e exclui contas
 - **Minha conta**: qualquer usuário logado troca a própria senha informando a atual
 - **Esqueceu a senha?** (simulado): na tela de login, o usuário informa o login ou e-mail e vê a confirmação de que um link foi enviado. Como o projeto não tem servidor de e-mail, nada é enviado de verdade
@@ -71,7 +71,7 @@ Se preferir usar um ambiente virtual (opcional), rode antes da instalação: `py
 python -m pytest
 ```
 
-São 28 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente, a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
+São 29 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente e a grade de horários livres, a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
 
 ## Segurança
 

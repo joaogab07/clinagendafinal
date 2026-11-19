@@ -5,6 +5,8 @@ from pathlib import Path
 from flask import current_app, g
 from werkzeug.security import generate_password_hash
 
+from models import normalizar
+
 SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -14,6 +16,8 @@ def get_db():
         g.db = sqlite3.connect(current_app.config["DATABASE"])
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        # permite usar normalizar(...) dentro do SQL: buscas sem diferenciar acentos e maiúsculas
+        g.db.create_function("normalizar", 1, normalizar, deterministic=True)
     return g.db
 
 

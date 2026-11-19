@@ -15,7 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import database
 from database import get_db
 from models import (Consulta, Especialidade, Paciente, Profissional, Usuario,
-                    formatar_cpf, somente_digitos)
+                    formatar_cpf, normalizar, somente_digitos)
 
 
 def carregar_chave_secreta(pasta):
@@ -137,7 +137,7 @@ def registrar_rotas(app):
     def login():
         if request.method == "POST":
             row = get_db().execute("SELECT * FROM usuario WHERE login = ?",
-                                   (form_str("login").lower(),)).fetchone()
+                                   (form_str("login"),)).fetchone()
             if row and check_password_hash(row["senha_hash"], request.form.get("senha", "")):
                 session.clear()
                 session["usuario_id"] = row["id"]
@@ -153,9 +153,11 @@ def registrar_rotas(app):
         if g.usuario:
             return redirect(url_for("inicio"))
         if request.method == "POST":
-            nome, login_ = form_str("nome"), form_str("login").lower()
+            nome, login_ = form_str("nome"), form_str("login")
             senha, confirmacao = request.form.get("senha", ""), request.form.get("confirmacao", "")
             erros = Usuario.validar_cadastro(nome, login_, senha, confirmacao)
+            if not erros and login_existe(login_):
+                erros.append(MSG_LOGIN_EM_USO)
             if not erros:
                 db = get_db()
                 try:
@@ -177,11 +179,10 @@ def registrar_rotas(app):
     def verificar_login():
         """Usado pela tela de cadastro para avisar, enquanto a pessoa digita,
         se o login escolhido é válido e se já pertence a outro usuário."""
-        login_ = request.args.get("login", "").strip().lower()
+        login_ = request.args.get("login", "").strip()
         if not Usuario.login_valido(login_):
             return jsonify(disponivel=False, mensagem=MSG_LOGIN_FORMATO)
-        existe = get_db().execute("SELECT 1 FROM usuario WHERE login = ?", (login_,)).fetchone()
-        if existe:
+        if login_existe(login_):
             return jsonify(disponivel=False, mensagem=MSG_LOGIN_EM_USO)
         return jsonify(disponivel=True, mensagem="Login disponível.")
 
@@ -233,8 +234,8 @@ def registrar_rotas(app):
         busca = request.args.get("q", "").strip()
         sql, params = "SELECT * FROM paciente", ()
         if busca:
-            sql += " WHERE nome LIKE ? OR cpf LIKE ?"
-            params = (f"%{busca}%", f"%{somente_digitos(busca) or busca}%")
+            sql += " WHERE normalizar(nome) LIKE ? OR cpf LIKE ?"
+            params = (f"%{normalizar(busca)}%", f"%{somente_digitos(busca) or busca}%")
         rows = get_db().execute(sql + " ORDER BY nome", params).fetchall()
         return render_template("pacientes/lista.html", pacientes=rows, busca=busca)
 
@@ -301,8 +302,11 @@ def registrar_rotas(app):
                              form_int("especialidade_id"), form_str("telefone"),
                              form_str("email"), request.form.get("ativo") == "1")
             erros = p.validar()
-            if not erros and db.execute("SELECT 1 FROM profissional WHERE upper(replace(registro, ' ', '')) "
-                                        "= upper(replace(?, ' ', '')) AND id IS NOT ?",
+            if p.especialidade_id and not db.execute("SELECT 1 FROM especialidade WHERE id = ?",
+                                                     (p.especialidade_id,)).fetchone():
+                erros.append("Especialidade não encontrada.")
+            if not erros and db.execute("SELECT 1 FROM profissional WHERE normalizar(replace(registro, ' ', '')) "
+                                        "= normalizar(replace(?, ' ', '')) AND id IS NOT ?",
                                         (p.registro, id)).fetchone():
                 erros.append("Já existe um profissional com este registro.")
             if not erros:
@@ -355,7 +359,7 @@ def registrar_rotas(app):
         if request.method == "POST":
             e = Especialidade(id, form_str("nome"), form_str("descricao"))
             erros = e.validar()
-            if not erros and db.execute("SELECT 1 FROM especialidade WHERE lower(nome) = lower(?) "
+            if not erros and db.execute("SELECT 1 FROM especialidade WHERE normalizar(nome) = normalizar(?) "
                                         "AND id IS NOT ?", (e.nome, id)).fetchone():
                 erros.append("Já existe uma especialidade com este nome.")
             if not erros:
@@ -413,7 +417,8 @@ def registrar_rotas(app):
         if id:
             row = db.execute("SELECT * FROM consulta WHERE id = ?", (id,)).fetchone() or abort(404)
         if request.method == "POST":
-            duracao = form_int("duracao_min")
+            bruto = form_str("duracao_min")
+            duracao = None if bruto == "" else (int(bruto) if bruto.isdigit() else -1)
             c = Consulta(id, form_int("paciente_id"), form_int("profissional_id"),
                          form_str("data_hora"), duracao if duracao is not None else 30,
                          form_str("status") or "agendada", form_str("observacoes"),
@@ -422,6 +427,16 @@ def registrar_rotas(app):
                              or row["profissional_id"] != c.profissional_id
                              or (row["status"] != "agendada" and c.status == "agendada"))
             erros = c.validar(nova=mudou_horario)
+            if c.paciente_id and not db.execute("SELECT 1 FROM paciente WHERE id = ?",
+                                                (c.paciente_id,)).fetchone():
+                erros.append("Paciente não encontrado.")
+            if c.profissional_id:
+                prof = db.execute("SELECT ativo FROM profissional WHERE id = ?",
+                                  (c.profissional_id,)).fetchone()
+                if not prof:
+                    erros.append("Profissional não encontrado.")
+                elif not prof["ativo"] and (not id or row["profissional_id"] != c.profissional_id):
+                    erros.append("Este profissional está inativo e não pode receber novas consultas.")
             if not erros and c.status == "agendada":
                 conflito = buscar_conflito(c, "profissional_id")
                 if conflito:
@@ -492,7 +507,7 @@ def registrar_rotas(app):
 
 
 MSG_LOGIN_EM_USO = "Esse login já pertence a outro usuário. Escolha outro."
-MSG_LOGIN_FORMATO = "O login deve ter de 3 a 30 caracteres, usando letras, números, ponto ou _."
+MSG_LOGIN_FORMATO = "O login deve ter de 3 a 30 caracteres, sem espaços, usando letras, números, ponto ou _."
 
 SQL_CONSULTAS = (
     "SELECT c.*, pa.nome AS paciente, pr.nome AS profissional, e.nome AS especialidade "
@@ -501,6 +516,13 @@ SQL_CONSULTAS = (
     "JOIN profissional pr ON pr.id = c.profissional_id "
     "JOIN especialidade e ON e.id = pr.especialidade_id"
 )
+
+
+def login_existe(login_: str) -> bool:
+    """O login é exato: só conta como repetido se for idêntico, letra por letra.
+    "João", "joao" e "JOAO" são logins diferentes."""
+    return get_db().execute("SELECT 1 FROM usuario WHERE login = ?",
+                            (login_,)).fetchone() is not None
 
 
 def buscar_conflito(nova: Consulta, campo: str):

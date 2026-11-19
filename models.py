@@ -1,10 +1,21 @@
 """Entidades do sistema (espelham o Diagrama de Classes) e suas regras de validação."""
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Optional
 
 STATUS_CONSULTA = ("agendada", "realizada", "cancelada")
+
+
+def normalizar(texto) -> str:
+    """Deixa o texto comparável: sem acentos, minúsculo e sem espaços sobrando.
+    Ex.: "  JOSÉ   Antônio " -> "jose antonio". Usada nas buscas e para evitar nomes repetidos."""
+    if texto is None:
+        return ""
+    sem_acento = "".join(ch for ch in unicodedata.normalize("NFKD", str(texto))
+                         if not unicodedata.combining(ch))
+    return " ".join(sem_acento.casefold().split())
 
 
 def somente_digitos(texto: str) -> str:
@@ -41,7 +52,8 @@ class Usuario:
 
     @staticmethod
     def login_valido(login: str) -> bool:
-        return re.fullmatch(r"[a-zA-Z0-9._]{3,30}", login) is not None
+        # \w aceita letras com acento (João), números e _
+        return re.fullmatch(r"[\w.]{3,30}", login) is not None
 
     @staticmethod
     def validar_nova_senha(senha: str, confirmacao: str) -> list:
@@ -59,7 +71,7 @@ class Usuario:
         if len(nome.strip()) < 3:
             erros.append("Informe seu nome completo.")
         if not Usuario.login_valido(login):
-            erros.append("O login deve ter de 3 a 30 caracteres, usando letras, números, ponto ou _.")
+            erros.append("O login deve ter de 3 a 30 caracteres, sem espaços, usando letras, números, ponto ou _.")
         return erros + Usuario.validar_nova_senha(senha, confirmacao)
 
 

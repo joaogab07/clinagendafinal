@@ -137,11 +137,29 @@ def test_crud_consulta_com_regras(client):
     assert client.get("/consultas/1/editar").status_code == 404
 
 
-def test_login_nao_diferencia_maiusculas(client):
-    client.post("/cadastro", data={"nome": "Maria Silva", "login": "Maria",
+def test_login_tem_que_ser_digitado_igual(client):
+    client.post("/cadastro", data={"nome": "João Silva", "login": "João",
                                    "senha": "123456", "confirmacao": "123456"})
     client.get("/logout")
-    assert "Olá, Maria Silva" in entrar(client, "MARIA", "123456").get_data(as_text=True)
+    for errado in ("joão", "JOÃO", "Joao", "joao"):
+        assert "incorretos" in entrar(client, errado, "123456").get_data(as_text=True)
+    assert "Olá, João Silva" in entrar(client, "João", "123456").get_data(as_text=True)
+    client.get("/logout")
+    # login só é repetido se for exatamente igual: "joao" e "JOÃO" podem ser outras contas
+    assert client.get("/cadastro/verificar-login",
+                      query_string={"login": "João"}).get_json()["disponivel"] is False
+    r = client.post("/cadastro", follow_redirects=True, data={
+        "nome": "Outra Pessoa", "login": "João", "senha": "123456", "confirmacao": "123456"})
+    assert "pertence a outro usuário" in r.get_data(as_text=True)
+    for diferente in ("joao", "JOÃO"):
+        assert client.get("/cadastro/verificar-login",
+                          query_string={"login": diferente}).get_json()["disponivel"] is True
+        r = client.post("/cadastro", follow_redirects=True, data={
+            "nome": "Outra Pessoa", "login": diferente, "senha": "654321", "confirmacao": "654321"})
+        assert "Conta criada" in r.get_data(as_text=True)
+        client.get("/logout")
+    # cada um entra com a sua própria senha
+    assert "Olá, João Silva" in entrar(client, "João", "123456").get_data(as_text=True)
 
 
 def test_login_nao_redireciona_para_outro_site(client):
@@ -211,8 +229,9 @@ def test_verificar_login_enquanto_digita(client):
     def checar(login):
         return client.get("/cadastro/verificar-login", query_string={"login": login}).get_json()
     assert checar("pedro")["disponivel"] is True
-    assert checar("ADMIN") == {"disponivel": False,
+    assert checar("admin") == {"disponivel": False,
                                "mensagem": "Esse login já pertence a outro usuário. Escolha outro."}
+    assert checar("ADMIN")["disponivel"] is True           # só bloqueia o login idêntico
     assert checar("ab")["disponivel"] is False          # curto demais
     assert checar("nome com espaço")["disponivel"] is False
 
@@ -287,3 +306,36 @@ def test_botao_marcar_realizada(client):
     r = client.post("/consultas/1/realizar", follow_redirects=True)
     texto = r.get_data(as_text=True)
     assert "marcada como realizada" in texto and "Marcar realizada" not in texto
+
+
+def test_busca_e_nomes_sem_diferenciar_acentos(client):
+    entrar(client)
+    client.post("/pacientes/novo", data={"nome": "José Antônio", "cpf": "12345678900",
+                                         "data_nascimento": "1990-01-01", "telefone": "43999990000"})
+    client.post("/pacientes/novo", data={"nome": "JOÃO PEREIRA", "cpf": "22233344455",
+                                         "data_nascimento": "1990-01-01", "telefone": "43999990000"})
+    assert "José Antônio" in client.get("/pacientes?q=jose antonio").get_data(as_text=True)
+    assert "JOÃO PEREIRA" in client.get("/pacientes?q=joão").get_data(as_text=True)
+    assert "JOÃO PEREIRA" in client.get("/pacientes?q=Joao").get_data(as_text=True)
+    assert "JOÃO PEREIRA" not in client.get("/pacientes?q=jose").get_data(as_text=True)
+    for nome in ("CLÍNICA GERAL", "Clinica Geral", "  clínica   geral "):
+        r = client.post("/especialidades/nova", data={"nome": nome}, follow_redirects=True)
+        assert "Já existe uma especialidade" in r.get_data(as_text=True)
+
+
+def test_consulta_com_dados_forjados(client):
+    """Valores que a tela não deixa escolher, mas alguém pode mandar alterando a página."""
+    entrar(client)
+    novo_paciente(client)
+    base = {"paciente_id": "1", "profissional_id": "1", "data_hora": amanha("10:00"), "duracao_min": "30"}
+    def msg(dados):
+        return client.post("/consultas/nova", data=dados, follow_redirects=True).get_data(as_text=True)
+    assert "Paciente não encontrado" in msg(dict(base, paciente_id="999"))
+    assert "Profissional não encontrado" in msg(dict(base, profissional_id="999"))
+    assert "entre 10 e 240" in msg(dict(base, duracao_min="abc"))
+    client.post("/profissionais/1/editar", data={"nome": "Dra. Ana Souza", "registro": "CRM-PR 12345",
+                                                 "especialidade_id": "1"})
+    assert "inativo" in msg(base)
+    r = client.post("/profissionais/novo", follow_redirects=True, data={
+        "nome": "X", "registro": "CRM 1", "especialidade_id": "999", "ativo": "1"})
+    assert "Especialidade não encontrada" in r.get_data(as_text=True)

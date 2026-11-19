@@ -15,7 +15,8 @@
       {% for p in profissionais %}<option value="{{ p.id }}" {% if c and c.profissional_id|string == p.id|string %}selected{% endif %}>{{ p.nome }} ({{ p.especialidade }}){% if not p.ativo %} — inativo{% endif %}</option>{% endfor %}
     </select></label>
   <div class="linha">
-    <label>Data e hora* <input type="datetime-local" name="data_hora" value="{{ c.data_hora if c else '' }}" required></label>
+    <label>Data e hora* <input type="datetime-local" name="data_hora" value="{{ c.data_hora if c else '' }}"
+           {% if not id %}min="{{ hoje_iso }}T07:00"{% endif %} max="9999-12-31T23:59" step="300" required></label>
     <label>Duração (min)* <input type="number" name="duracao_min" min="10" max="240" step="5" value="{{ c.duracao_min if c else 30 }}" required></label>
     {% if id %}
     <label>Status

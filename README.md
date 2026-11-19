@@ -26,7 +26,7 @@ Funcionalidades (CRUD completo):
 Regras de negócio:
 
 - um profissional, ou um paciente, não pode ter duas consultas agendadas no mesmo horário; consultas canceladas liberam o horário
-- a consulta precisa começar e terminar dentro do expediente (07h às 20h) e durar de 10 a 240 minutos
+- a consulta precisa começar e terminar dentro do expediente (07h às 20h) e durar de 10 a 240 minutos, com horário de 5 em 5 minutos; os campos de data só aceitam ano com 4 dígitos
 - não é possível agendar no passado nem marcar como realizada uma consulta que ainda não começou; só consultas agendadas podem ser canceladas
 - profissionais inativos não recebem novas consultas, mas continuam aparecendo nas consultas que já eram deles
 - o CPF deve ter 11 números e não pode se repetir; o telefone deve ter DDD e número (10 ou 11 números)
@@ -71,7 +71,7 @@ Se preferir usar um ambiente virtual (opcional), rode antes da instalação: `py
 python -m pytest
 ```
 
-São 29 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente e a grade de horários livres, a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
+São 30 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente e a grade de horários livres, a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
 
 ## Segurança
 

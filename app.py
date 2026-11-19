@@ -120,7 +120,8 @@ def registrar_rotas(app):
     @app.context_processor
     def contexto():
         return {"csrf": session.get("csrf", ""), "formatar_cpf": formatar_cpf,
-                "agora": datetime.now().strftime("%Y-%m-%dT%H:%M")}
+                "agora": datetime.now().strftime("%Y-%m-%dT%H:%M"),
+                "hoje_iso": date.today().isoformat()}
 
     @app.template_filter("dt")
     def filtro_data_hora(valor):

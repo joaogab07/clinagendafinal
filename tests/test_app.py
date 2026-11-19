@@ -566,3 +566,27 @@ def test_grade_de_horarios_do_paciente(client):
         "profissional_id": "2", "data": ontem}).get_data(as_text=True)
     assert "Data inválida" in client.get("/minha-area/agendar", query_string={
         "profissional_id": "2", "data": "abc"}).get_data(as_text=True)
+
+
+def test_data_e_hora_da_recepcao(client):
+    entrar(client)
+    novo_paciente(client)
+    dados = {"paciente_id": "1", "profissional_id": "1", "duracao_min": "30", "observacoes": ""}
+    # ano com mais de 4 dígitos, hora fora do expediente e minuto quebrado -> recusados
+    for data_hora, msg in (("123121-03-12T10:00", "Data e hora inválidas"),
+                           (amanha("23:23"), "atende das 07h às 20h"),
+                           (amanha("08:03"), "de 5 em 5 minutos")):
+        r = client.post("/consultas/nova", follow_redirects=True, data=dict(dados, data_hora=data_hora))
+        assert msg in r.get_data(as_text=True)
+    assert get_db_count(client) == 0
+    # o campo limita o ano a 4 dígitos e não oferece datas passadas
+    html = client.get("/consultas/nova").get_data(as_text=True)
+    assert 'max="9999-12-31T23:59"' in html and 'step="300"' in html and 'min="' in html
+    # filtro com data estranha não quebra a lista
+    assert client.get("/consultas?data=123121-03-12").status_code == 200
+
+
+def get_db_count(client):
+    from app import get_db
+    with client.application.app_context():
+        return get_db().execute("SELECT COUNT(*) FROM consulta").fetchone()[0]

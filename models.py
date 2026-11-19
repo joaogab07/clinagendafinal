@@ -189,6 +189,8 @@ class Consulta:
             inicio = self.inicio
             if nova and inicio < datetime.now():
                 erros.append("Não é possível agendar no passado.")
+            if inicio.minute % 5 or inicio.second:
+                erros.append("Escolha um horário de 5 em 5 minutos (ex.: 08:00, 08:05, 08:10).")
             if not 7 <= inicio.hour < 20:
                 erros.append("A clínica atende das 07h às 20h.")
             elif 10 <= int(self.duracao_min) <= 240 and self.fim > inicio.replace(hour=20, minute=0):

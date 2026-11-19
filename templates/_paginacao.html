@@ -1,0 +1,11 @@
+{# Navegação entre páginas das listagens (usa o dicionário "pag" criado por paginar()) #}
+{% if pag.total %}
+<nav class="paginacao" aria-label="Páginas">
+  <span>Mostrando {{ pag.inicio }}–{{ pag.fim }} de {{ pag.total }}</span>
+  {% if pag.paginas > 1 %}
+    {% if pag.pagina > 1 %}<a class="btn secundario" href="?{{ dict(pag.args, pagina=pag.pagina - 1)|urlencode }}">← Anterior</a>{% endif %}
+    <span>Página {{ pag.pagina }} de {{ pag.paginas }}</span>
+    {% if pag.pagina < pag.paginas %}<a class="btn secundario" href="?{{ dict(pag.args, pagina=pag.pagina + 1)|urlencode }}">Próxima →</a>{% endif %}
+  {% endif %}
+</nav>
+{% endif %}

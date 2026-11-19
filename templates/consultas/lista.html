@@ -16,4 +16,5 @@
   <a href="{{ url_for('consultas') }}">Limpar</a>
 </form>
 {{ tabela(consultas) }}
+{% include "_paginacao.html" %}
 {% endblock %}

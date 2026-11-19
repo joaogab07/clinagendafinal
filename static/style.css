@@ -56,6 +56,8 @@ th { background: #eaeef2; font-size: .85rem; text-transform: uppercase; letter-s
 td small { color: var(--suave); }
 .acoes { white-space: nowrap; }
 .acoes form { display: inline; margin-left: 10px; }
+.paginacao { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: flex-end;
+             margin-top: 12px; color: var(--suave); font-size: .9rem; }
 .vazio { text-align: center; color: var(--suave); padding: 24px; }
 
 /* status: ícone + texto + estilo de borda, para não depender só de cor */

@@ -236,8 +236,8 @@ def registrar_rotas(app):
         if busca:
             sql += " WHERE normalizar(nome) LIKE ? OR cpf LIKE ?"
             params = (f"%{normalizar(busca)}%", f"%{somente_digitos(busca) or busca}%")
-        rows = get_db().execute(sql + " ORDER BY nome", params).fetchall()
-        return render_template("pacientes/lista.html", pacientes=rows, busca=busca)
+        rows, pag = paginar(sql, params, "ORDER BY nome")
+        return render_template("pacientes/lista.html", pacientes=rows, busca=busca, pag=pag)
 
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @app.route("/pacientes/<int:id>/editar", methods=["GET", "POST"])
@@ -403,9 +403,9 @@ def registrar_rotas(app):
             filtros.append("c.status = ?"); params.append(status)
         where = (" WHERE " + " AND ".join(filtros)) if filtros else ""
         db = get_db()
-        rows = db.execute(SQL_CONSULTAS + where + " ORDER BY c.data_hora DESC", params).fetchall()
+        rows, pag = paginar(SQL_CONSULTAS + where, params, "ORDER BY c.data_hora DESC")
         profs = db.execute("SELECT id, nome FROM profissional ORDER BY nome").fetchall()
-        return render_template("consultas/lista.html", consultas=rows, profissionais=profs,
+        return render_template("consultas/lista.html", consultas=rows, profissionais=profs, pag=pag,
                                filtro={"data": data, "profissional": prof, "status": status})
 
     @app.route("/consultas/nova", methods=["GET", "POST"])
@@ -516,6 +516,26 @@ SQL_CONSULTAS = (
     "JOIN profissional pr ON pr.id = c.profissional_id "
     "JOIN especialidade e ON e.id = pr.especialidade_id"
 )
+
+
+POR_PAGINA = 50
+
+
+def paginar(sql: str, params, ordem: str):
+    """Divide uma listagem em páginas de POR_PAGINA itens (RNF09: listas leves mesmo com
+    milhares de registros). Lê o número da página de ?pagina= e devolve os itens e os dados
+    usados pelo template _paginacao.html."""
+    db = get_db()
+    total = db.execute(f"SELECT COUNT(*) FROM ({sql})", params).fetchone()[0]
+    paginas = max(1, -(-total // POR_PAGINA))          # arredonda para cima
+    pagina = request.args.get("pagina", "1")
+    pagina = min(max(int(pagina) if pagina.isdigit() else 1, 1), paginas)
+    itens = db.execute(f"{sql} {ordem} LIMIT ? OFFSET ?",
+                       list(params) + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
+    args = {k: v for k, v in request.args.items() if k != "pagina"}
+    return itens, {"pagina": pagina, "paginas": paginas, "total": total, "args": args,
+                   "inicio": (pagina - 1) * POR_PAGINA + 1 if total else 0,
+                   "fim": min(pagina * POR_PAGINA, total)}
 
 
 def login_existe(login_: str) -> bool:

@@ -339,3 +339,23 @@ def test_consulta_com_dados_forjados(client):
     r = client.post("/profissionais/novo", follow_redirects=True, data={
         "nome": "X", "registro": "CRM 1", "especialidade_id": "999", "ativo": "1"})
     assert "Especialidade não encontrada" in r.get_data(as_text=True)
+
+
+def test_listas_paginadas(client):
+    entrar(client)
+    with client.application.app_context():
+        from database import get_db
+        db = get_db()
+        db.executemany("INSERT INTO paciente (nome, cpf, data_nascimento, telefone) VALUES (?, ?, ?, ?)",
+                       [(f"Paciente {i:03d}", f"{i:011d}", "1990-01-01", "43999990000") for i in range(1, 121)])
+        db.commit()
+    p1 = client.get("/pacientes").get_data(as_text=True)
+    assert "Mostrando 1–50 de 120" in p1 and "Paciente 001" in p1 and "Paciente 051" not in p1
+    p3 = client.get("/pacientes?pagina=3").get_data(as_text=True)
+    assert "Mostrando 101–120 de 120" in p3 and "Paciente 120" in p3 and "Próxima" not in p3
+    # página inválida ou além do fim não quebra
+    assert "Mostrando 101–120" in client.get("/pacientes?pagina=99").get_data(as_text=True)
+    assert "Mostrando 1–50" in client.get("/pacientes?pagina=abc").get_data(as_text=True)
+    # o filtro é mantido nos links de página
+    filtrado = client.get("/pacientes?q=paciente&pagina=2").get_data(as_text=True)
+    assert "q=paciente" in filtrado and "Mostrando 51–100 de 120" in filtrado

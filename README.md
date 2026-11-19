@@ -15,10 +15,10 @@ Funcionalidades (CRUD completo):
 - **Autenticação** com dois perfis: Administrador e Recepção
 - **Criar conta**: qualquer pessoa pode se cadastrar pela tela de login e entra com o perfil Recepção. O sistema avisa, enquanto a pessoa digita, se o login já pertence a outro usuário
 - **Minha conta**: o usuário logado troca a própria senha informando a atual
-- **Pacientes**: cadastrar, listar, buscar por nome ou CPF, editar e excluir. A busca por nome não diferencia acentos nem maiúsculas ("joao" encontra "João"), e CPF e telefone ganham pontos, traço e parênteses automaticamente durante a digitação
+- **Pacientes**: cadastrar, listar (em páginas de 50), buscar por nome ou CPF, editar e excluir. A busca por nome não diferencia acentos nem maiúsculas ("joao" encontra "João"), e CPF e telefone ganham pontos, traço e parênteses automaticamente durante a digitação
 - **Profissionais**: cadastrar, listar, editar, inativar e excluir (somente administrador)
 - **Especialidades**: cadastrar, listar, editar e excluir (somente administrador)
-- **Consultas**: agendar, listar com filtros (data, profissional, status), editar, cancelar, excluir (somente administrador) e **marcar como realizada** com um clique quando o horário da consulta já chegou
+- **Consultas**: agendar, listar com filtros (data, profissional, status) em páginas de 50, editar, cancelar, excluir (somente administrador) e **marcar como realizada** com um clique quando o horário da consulta já chegou
 
 Regras de negócio:
 
@@ -65,7 +65,7 @@ Se preferir usar um ambiente virtual (opcional), rode antes da instalação: `py
 python -m pytest
 ```
 
-São 21 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta, a troca de senha, o controle de acesso por perfil, as regras de negócio acima e a segurança da sessão.
+São 22 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta, a troca de senha, o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
 
 ## Segurança
 

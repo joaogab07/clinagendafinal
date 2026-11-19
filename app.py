@@ -483,8 +483,11 @@ def registrar_rotas(app):
         if request.method == "POST":
             bruto = form_str("duracao_min")
             duracao = None if bruto == "" else (int(bruto) if bruto.isdigit() else -1)
+            # a tela manda o dia e a hora em campos separados; data_hora inteiro também é aceito
+            data_hora = form_str("data_hora") or (
+                f'{form_str("data")}T{form_str("hora")}' if form_str("data") and form_str("hora") else "")
             c = Consulta(id, form_int("paciente_id"), form_int("profissional_id"),
-                         form_str("data_hora"), duracao if duracao is not None else 30,
+                         data_hora, duracao if duracao is not None else 30,
                          form_str("status") or "agendada", form_str("observacoes"),
                          g.usuario.id)
             mudou_horario = (not id or row["data_hora"] != c.data_hora
@@ -514,8 +517,30 @@ def registrar_rotas(app):
         profs = db.execute("SELECT p.id, p.nome, p.ativo, e.nome AS especialidade FROM profissional p "
                            "JOIN especialidade e ON e.id = p.especialidade_id "
                            "WHERE p.ativo = 1 OR p.id = ? ORDER BY p.nome", (atual or 0,)).fetchall()
-        return render_template("consultas/form.html", c=row, id=id,
-                               pacientes=pacs, profissionais=profs)
+        # valores da tela: do banco (edição), da escolha feita em "Ver horários" (GET) ou do
+        # formulário que voltou com erro (POST)
+        v = {"paciente_id": "", "profissional_id": "", "data": "", "hora": "", "duracao_min": "30",
+             "status": "agendada", "observacoes": ""}
+        banco = get_db().execute("SELECT * FROM consulta WHERE id = ?", (id,)).fetchone() if id else None
+        if banco:
+            dia_b, _, hora_b = banco["data_hora"].partition("T")
+            v.update({k: str(banco[k] if banco[k] is not None else "")
+                      for k in ("paciente_id", "profissional_id", "duracao_min", "status", "observacoes")},
+                     data=dia_b, hora=hora_b)
+        fonte = request.form if request.method == "POST" else request.args
+        for k in v:
+            if k in fonte:
+                v[k] = fonte.get(k, "").strip()
+        horarios = aviso = None
+        if v["profissional_id"].isdigit() and v["data"]:
+            dur = int(v["duracao_min"]) if v["duracao_min"].isdigit() else 0
+            horarios, aviso = horarios_do_dia(
+                int(v["profissional_id"]), v["data"],
+                int(v["paciente_id"]) if v["paciente_id"].isdigit() else None,
+                duracao=dur, passo=PASSO_RECEPCAO, consulta_atual=banco, do_paciente=False)
+        return render_template("consultas/form.html", v=v, id=id, pacientes=pacs,
+                               profissionais=profs, horarios=horarios, aviso=aviso,
+                               limite=(date.today() + timedelta(days=LIMITE_DIAS)).isoformat())
 
     @app.route("/consultas/<int:id>/cancelar", methods=["POST"])
     @equipe_required
@@ -591,6 +616,7 @@ def registrar_rotas(app):
         return render_template("area/agendar.html", profissionais=profissionais_ativos(),
                                prof_id=prof_id, dia=dia, horarios=horarios, aviso=aviso,
                                hoje=date.today().isoformat(),
+                               limite=(date.today() + timedelta(days=LIMITE_DIAS)).isoformat(),
                                observacoes=request.form.get("observacoes", ""))
 
     @app.route("/minha-area/consultas/<int:id>/cancelar", methods=["POST"])
@@ -718,6 +744,11 @@ def validar_agendamento(c: Consulta, nova: bool, profissional_atual=None) -> lis
     e conflito de horário do profissional e do paciente (RN04)."""
     db = get_db()
     erros = c.validar(nova=nova)
+    try:
+        if nova and c.inicio.date() > date.today() + timedelta(days=LIMITE_DIAS):
+            erros.append("A consulta pode ser marcada com no máximo 2 anos de antecedência.")
+    except ValueError:
+        pass
     if c.paciente_id and not db.execute("SELECT 1 FROM paciente WHERE id = ?",
                                         (c.paciente_id,)).fetchone():
         erros.append("Paciente não encontrado.")
@@ -739,45 +770,78 @@ def validar_agendamento(c: Consulta, nova: bool, profissional_atual=None) -> lis
     return erros
 
 
+LIMITE_DIAS = 730       # consultas novas podem ser marcadas com até 2 anos de antecedência
 DURACAO_PACIENTE = 30   # consultas marcadas pelo próprio paciente duram 30 minutos
 
 
-def horarios_do_dia(profissional_id: int, dia: str, paciente_id: int):
-    """Monta a grade do dia, das 07:00 até o último horário que termina às 20:00, de 30 em 30
-    minutos. Cada horário vem como {"hora", "valor", "livre", "motivo"}: fica ocupado se já
-    passou, se o profissional tem consulta agendada que se sobrepõe (inclusive consultas mais
-    longas marcadas pela recepção) ou se o próprio paciente já tem consulta nesse horário."""
+def horarios_do_dia(profissional_id: int, dia: str, paciente_id, duracao: int = None,
+                    passo: int = None, consulta_atual=None, do_paciente: bool = True):
+    """Monta a grade do dia, das 07:00 até o último horário em que a consulta ainda termina
+    às 20:00. O paciente vê de 30 em 30 minutos (consultas de 30 min); a recepção vê de 15 em 15
+    com a duração que escolheu. Cada horário vem como {"hora", "valor", "livre", "motivo"}: fica
+    ocupado se já passou, se o profissional tem consulta agendada que se sobrepõe (inclusive
+    consultas mais longas) ou se o paciente já tem consulta nesse horário.
+    Na edição, `consulta_atual` (linha do banco) é ignorada nos conflitos e o horário dela
+    continua disponível, mesmo que já tenha passado."""
+    duracao = duracao or DURACAO_PACIENTE
+    passo = passo or DURACAO_PACIENTE
     try:
         d = date.fromisoformat(dia)
     except ValueError:
         return None, "Data inválida."
-    if d < date.today():
-        return None, "Escolha uma data a partir de hoje."
+    atual_valor = consulta_atual["data_hora"] if consulta_atual else None
+    mesmo_dia = bool(atual_valor) and atual_valor.startswith(dia)
+    if not mesmo_dia:
+        if d < date.today():
+            return None, "Escolha uma data a partir de hoje."
+        if d > date.today() + timedelta(days=LIMITE_DIAS):
+            return None, "A consulta pode ser marcada com no máximo 2 anos de antecedência."
+    if not 10 <= duracao <= 240:
+        return None, "A duração deve ficar entre 10 e 240 minutos."
     db = get_db()
+    ignorar = consulta_atual["id"] if consulta_atual else None
     ocupadas = [Consulta(r["id"], r["paciente_id"], r["profissional_id"], r["data_hora"], r["duracao_min"])
                 for r in db.execute("SELECT * FROM consulta WHERE status = 'agendada' AND date(data_hora) = ? "
-                                    "AND (profissional_id = ? OR paciente_id = ?)",
-                                    (dia, profissional_id, paciente_id))]
+                                    "AND (profissional_id = ? OR paciente_id = ?) AND id IS NOT ?",
+                                    (dia, profissional_id, paciente_id or 0, ignorar))]
     agora = datetime.now()
+    fim_expediente = datetime.combine(d, datetime.min.time()).replace(hour=20)
+    inicios = []
+    t = fim_expediente.replace(hour=7)
+    while t + timedelta(minutes=duracao) <= fim_expediente:
+        inicios.append(t)
+        t += timedelta(minutes=passo)
+    if mesmo_dia:                    # horário da consulta que está sendo editada, mesmo fora da grade
+        atual = datetime.fromisoformat(atual_valor)
+        if atual not in inicios:
+            inicios = sorted(inicios + [atual])
     horarios = []
-    inicio = datetime.combine(d, datetime.min.time()).replace(hour=7)
-    fim_expediente = inicio.replace(hour=20)
-    while inicio + timedelta(minutes=DURACAO_PACIENTE) <= fim_expediente:
+    for inicio in inicios:
         valor = inicio.strftime("%Y-%m-%dT%H:%M")
-        teste = Consulta(None, paciente_id, profissional_id, valor, DURACAO_PACIENTE)
+        teste = Consulta(None, paciente_id, profissional_id, valor, duracao)
         motivo = ""
-        if inicio <= agora:
+        if valor == atual_valor:
+            pass
+        elif inicio <= agora:
             motivo = "Já passou"
+        elif teste.fim > fim_expediente:
+            motivo = "Passa das 20h"
         else:
             for o in ocupadas:
                 if teste.conflita_com(o):
-                    motivo = "Ocupado" if o.profissional_id == profissional_id else "Você já tem consulta"
+                    if o.profissional_id == profissional_id:
+                        motivo = "Ocupado"
+                    else:
+                        motivo = "Você já tem consulta" if do_paciente else "Paciente ocupado"
                     break
-        horarios.append({"hora": inicio.strftime("%H:%M"), "valor": valor, "livre": not motivo, "motivo": motivo})
-        inicio += timedelta(minutes=DURACAO_PACIENTE)
+        horarios.append({"hora": inicio.strftime("%H:%M"), "valor": valor, "livre": not motivo,
+                         "motivo": motivo, "atual": valor == atual_valor})
     if not any(h["livre"] for h in horarios):
         return horarios, "Não há horários livres nesse dia. Escolha outra data."
     return horarios, None
+
+
+PASSO_RECEPCAO = 15     # a grade da recepção mostra horários de 15 em 15 minutos
 
 
 def profissionais_ativos():

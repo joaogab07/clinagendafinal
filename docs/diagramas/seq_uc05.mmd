@@ -1,0 +1,33 @@
+sequenceDiagram
+    actor R as Recepcionista
+    participant T as Tela de Consultas
+    participant C as Controlador (app.py)
+    participant K as Consulta (models.py)
+    participant DB as Banco SQLite
+    R->>T: escolhe paciente, profissional, dia e duração
+    T->>C: GET /consultas/nova?paciente_id&profissional_id&data&duracao_min
+    C->>DB: SELECT consultas agendadas do profissional e do paciente no dia
+    DB-->>C: horários já ocupados
+    C-->>T: grade de 15 em 15 min (livres, "Ocupado" e "Paciente ocupado")
+    R->>T: escolhe um horário livre e salva
+    T->>C: POST /consultas/nova
+    C->>K: Consulta(paciente, profissional, data_hora, duracao)
+    C->>K: validar(nova=True)
+    K-->>C: erros (passado, fora do expediente, realizada no futuro...)
+    opt sem erros de validação
+        C->>DB: SELECT consultas agendadas do profissional e do paciente no dia
+        DB-->>C: consultas existentes
+        loop para cada consulta existente
+            C->>K: conflita_com(existente)
+            K-->>C: verdadeiro / falso
+        end
+    end
+    alt sem erros e sem conflito
+        C->>DB: INSERT INTO consulta (..., status = 'agendada')
+        DB-->>C: OK
+        C-->>T: lista de consultas com "Consulta salva"
+    else há erro ou conflito
+        C-->>T: "O profissional já tem consulta às HH:MM..."
+    end
+    T-->>R: mostra resultado
+    Note over R,DB: Cancelar: POST /consultas/{id}/cancelar → UPDATE status = 'cancelada' (libera o horário)<br/>Marcar realizada: POST /consultas/{id}/realizar → só se o horário já chegou (RN08)

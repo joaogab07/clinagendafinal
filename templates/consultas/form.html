@@ -4,28 +4,68 @@
 {% block conteudo %}
 <h1>{{ 'Editar' if id else 'Agendar' }} consulta</h1>
 {% if not pacientes %}<div class="aviso erro">✖ Cadastre um paciente antes de agendar. <a href="{{ url_for('paciente_form') }}">Cadastrar paciente</a></div>{% endif %}
-<form class="cartao formulario" method="post">
+<form class="cartao formulario" method="post" id="form-consulta">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label>Paciente*
-    <select name="paciente_id" required><option value="">Selecione...</option>
-      {% for p in pacientes %}<option value="{{ p.id }}" {% if c and c.paciente_id|string == p.id|string %}selected{% endif %}>{{ p.nome }} — {{ formatar_cpf(p.cpf) }}</option>{% endfor %}
+    <select name="paciente_id" required data-atualiza><option value="">Selecione...</option>
+      {% for p in pacientes %}<option value="{{ p.id }}" {% if v.paciente_id == p.id|string %}selected{% endif %}>{{ p.nome }} — {{ formatar_cpf(p.cpf) }}</option>{% endfor %}
     </select></label>
   <label>Profissional*
-    <select name="profissional_id" required><option value="">Selecione...</option>
-      {% for p in profissionais %}<option value="{{ p.id }}" {% if c and c.profissional_id|string == p.id|string %}selected{% endif %}>{{ p.nome }} ({{ p.especialidade }}){% if not p.ativo %} — inativo{% endif %}</option>{% endfor %}
+    <select name="profissional_id" required data-atualiza><option value="">Selecione...</option>
+      {% for p in profissionais %}<option value="{{ p.id }}" {% if v.profissional_id == p.id|string %}selected{% endif %}>{{ p.nome }} ({{ p.especialidade }}){% if not p.ativo %} — inativo{% endif %}</option>{% endfor %}
     </select></label>
   <div class="linha">
-    <label>Data e hora* <input type="datetime-local" name="data_hora" value="{{ c.data_hora if c else '' }}"
-           {% if not id %}min="{{ hoje_iso }}T07:00"{% endif %} max="9999-12-31T23:59" step="300" required></label>
-    <label>Duração (min)* <input type="number" name="duracao_min" min="10" max="240" step="5" value="{{ c.duracao_min if c else 30 }}" required></label>
+    <label>Dia* <input type="date" name="data" value="{{ v.data }}" data-atualiza
+           {% if not id %}min="{{ hoje_iso }}" max="{{ limite }}"{% else %}max="9999-12-31"{% endif %} required></label>
+    <label>Duração (min)* <input type="number" name="duracao_min" min="10" max="240" step="5" value="{{ v.duracao_min }}" data-atualiza required></label>
     {% if id %}
     <label>Status
       <select name="status">{% for s in ('agendada', 'realizada', 'cancelada') %}
-        <option value="{{ s }}" {% if c.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></label>
+        <option value="{{ s }}" {% if v.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></label>
     {% endif %}
   </div>
-  <label>Observações <textarea name="observacoes" rows="3">{{ c.observacoes if c and c.observacoes else '' }}</textarea></label>
-  <div class="botoes"><button class="btn">Salvar</button>
+  {# "Ver horários" recarrega a mesma tela (GET) com as escolhas acima e monta a grade #}
+  <div class="botoes"><button class="btn secundario" id="ver-horarios" formmethod="get" formnovalidate>Ver horários</button></div>
+
+  {% if aviso %}<div class="aviso erro">✖ {{ aviso }}</div>{% endif %}
+  {% if horarios %}
+  <fieldset class="grade-horarios">
+    <legend>Horários de {{ v.data|dt }} <span class="dica-texto">(consulta de {{ v.duracao_min }} minutos)</span></legend>
+    {% for h in horarios %}
+      {% if h.livre %}
+        <label class="horario"><input type="radio" name="hora" value="{{ h.hora }}" {% if h.hora == v.hora %}checked{% endif %} required> {{ h.hora }}{% if h.atual %} <small>atual</small>{% endif %}</label>
+      {% else %}
+        <span class="horario ocupado" title="{{ h.motivo }}"><s>{{ h.hora }}</s> <small>{{ h.motivo }}</small></span>
+      {% endif %}
+    {% endfor %}
+  </fieldset>
+  {% elif not aviso %}
+  <p class="dica-texto">Escolha o paciente, o profissional, o dia e a duração para ver os horários livres.</p>
+  {% endif %}
+
+  <label>Observações <textarea name="observacoes" rows="3">{{ v.observacoes }}</textarea></label>
+  <div class="botoes">{% if horarios %}<button class="btn">Salvar</button>{% endif %}
     <a class="btn secundario" href="{{ url_for('consultas') }}">Voltar</a></div>
 </form>
+<script>
+  // ao trocar paciente, profissional, dia ou duração, a grade é atualizada sozinha
+  (function () {
+    var botao = document.getElementById("ver-horarios"), espera;
+    var csrf = document.querySelector("#form-consulta [name=csrf]");
+    // a busca dos horários não precisa levar o código de segurança no endereço
+    botao.addEventListener("click", function () {
+      csrf.disabled = true;
+      setTimeout(function () { csrf.disabled = false; }, 0);
+    });
+    document.querySelectorAll("[data-atualiza]").forEach(function (campo) {
+      var tipo = campo.type === "number" ? "input" : "change";
+      campo.addEventListener(tipo, function () {
+        clearTimeout(espera);
+        // espera a pessoa terminar de digitar a duração ou o dia
+        espera = setTimeout(function () { if (campo.checkValidity()) botao.click(); },
+                            campo.tagName === "SELECT" ? 0 : 700);
+      });
+    });
+  })();
+</script>
 {% endblock %}

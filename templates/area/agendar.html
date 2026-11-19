@@ -11,7 +11,7 @@
       <select name="profissional_id" required><option value="">Selecione...</option>
         {% for p in profissionais %}<option value="{{ p.id }}" {% if prof_id == p.id %}selected{% endif %}>{{ p.nome }} ({{ p.especialidade }})</option>{% endfor %}
       </select></label>
-    <label>Dia* <input type="date" name="data" min="{{ hoje }}" max="9999-12-31" value="{{ dia }}" required></label>
+    <label>Dia* <input type="date" name="data" min="{{ hoje }}" max="{{ limite }}" value="{{ dia }}" required></label>
   </div>
   <div class="botoes"><button class="btn secundario">Ver horários</button></div>
 </form>

@@ -21,12 +21,12 @@ Funcionalidades (CRUD completo):
 - **Pacientes**: cadastrar, listar (em páginas de 50), buscar por nome ou CPF, editar e excluir. A busca por nome não diferencia acentos nem maiúsculas ("joao" encontra "João"), e CPF e telefone ganham pontos, traço e parênteses automaticamente durante a digitação
 - **Profissionais**: cadastrar, listar, editar, inativar e excluir (somente administrador)
 - **Especialidades**: cadastrar, listar, editar e excluir (somente administrador)
-- **Consultas**: agendar, listar com filtros (data, profissional, status) em páginas de 50, editar, cancelar, excluir (somente administrador) e **marcar como realizada** com um clique quando o horário da consulta já chegou
+- **Consultas**: agendar escolhendo paciente, profissional, dia e duração e clicando num horário livre da grade (de 15 em 15 minutos; os ocupados aparecem riscados com "Ocupado" ou "Paciente ocupado"), listar com filtros (data, profissional, status) em páginas de 50, editar, cancelar, excluir (somente administrador) e **marcar como realizada** com um clique quando o horário da consulta já chegou
 
 Regras de negócio:
 
 - um profissional, ou um paciente, não pode ter duas consultas agendadas no mesmo horário; consultas canceladas liberam o horário
-- a consulta precisa começar e terminar dentro do expediente (07h às 20h) e durar de 10 a 240 minutos, com horário de 5 em 5 minutos; os campos de data só aceitam ano com 4 dígitos
+- a consulta precisa começar e terminar dentro do expediente (07h às 20h) e durar de 10 a 240 minutos; uma consulta nova pode ser marcada com até 2 anos de antecedência e os campos de data só aceitam ano com 4 dígitos
 - não é possível agendar no passado nem marcar como realizada uma consulta que ainda não começou; só consultas agendadas podem ser canceladas
 - profissionais inativos não recebem novas consultas, mas continuam aparecendo nas consultas que já eram deles
 - o CPF deve ter 11 números e não pode se repetir; o telefone deve ter DDD e número (10 ou 11 números)
@@ -94,7 +94,8 @@ clinagenda/
 │   └── usuarios/       # tela de usuários do administrador
 ├── static/
 │   ├── style.css       # estilos
-│   └── mascaras.js     # máscaras de CPF e telefone
+│   ├── mascaras.js     # máscaras de CPF e telefone
+│   └── validacao.js    # avisos dos campos em português
 └── tests/              # testes automatizados
 ```
 

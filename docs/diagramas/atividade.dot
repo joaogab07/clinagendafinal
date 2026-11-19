@@ -1,0 +1,35 @@
+digraph A {
+  graph [fontname="Liberation Sans", fontsize=15, nodesep=0.5, ranksep=0.42, dpi=220, newrank=true, pad=0.2];
+  node [fontname="Liberation Sans", fontsize=12, shape=box, style="rounded", width=2.4, height=0.5];
+  edge [fontname="Liberation Sans", fontsize=11, arrowsize=0.8];
+  subgraph cluster_r { label="Recepcionista"; style=solid; penwidth=1.4; margin=16;
+    ini [shape=circle, style=filled, fillcolor=black, label="", width=0.28, height=0.28];
+    a1 [label="Acessar \"Agendar consulta\""];
+    a2 [label="Selecionar paciente, profissional,\ndia, duração e um horário\nlivre na grade"];
+    a3 [label="Ler a mensagem e\ncorrigir os dados"];
+    a7 [label="Visualizar consulta\nna agenda"];
+    fim [shape=doublecircle, style=filled, fillcolor=black, label="", width=0.2, height=0.2];
+  }
+  subgraph cluster_s { label="Sistema ClinAgenda"; style=solid; penwidth=1.4; margin=16;
+    s1 [label="Carregar pacientes e\nprofissionais ativos"];
+    s2 [label="Validar campos (data futura,\nexpediente até 20h, duração)"];
+    d1 [shape=diamond, style=solid, label="Dados\nválidos?", width=1.3, height=0.9];
+    s3 [label="Buscar consultas agendadas do\nprofissional e do paciente no dia"];
+    d2 [shape=diamond, style=solid, label="Há conflito\nde horário?", width=1.5, height=1.0];
+    s4 [label="Exibir mensagem de erro"];
+    s5 [label="Gravar consulta com\nstatus \"agendada\""];
+    s6 [label="Exibir \"Consulta salva\"\ne lista de consultas"];
+  }
+  ini -> a1 -> s1 -> a2 -> s2 -> d1;
+  d1 -> s3 [label=" [sim]"];
+  d1 -> s4 [label=" [não]"];
+  s3 -> s4 [style=invis];
+  s3 -> d2;
+  d2 -> s4 [label=" [sim]"];
+  d2 -> s5 [label=" [não]"];
+  s4 -> a3 [constraint=false]; a3 -> a2 [constraint=false, label=" reenviar"];
+  s5 -> s6 -> a7 -> fim;
+  {rank=same; a2; s1}
+  {rank=same; a3; s3; s4}
+  {rank=same; a7; s6}
+}

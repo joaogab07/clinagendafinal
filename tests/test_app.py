@@ -579,9 +579,31 @@ def test_data_e_hora_da_recepcao(client):
         r = client.post("/consultas/nova", follow_redirects=True, data=dict(dados, data_hora=data_hora))
         assert msg in r.get_data(as_text=True)
     assert get_db_count(client) == 0
-    # o campo limita o ano a 4 dígitos e não oferece datas passadas
+    # mais de 2 anos à frente -> recusado
+    longe = (datetime.now() + timedelta(days=800)).strftime("%Y-%m-%d")
+    r = client.post("/consultas/nova", follow_redirects=True, data=dict(dados, data=longe, hora="10:00"))
+    assert "2 anos de antecedência" in r.get_data(as_text=True)
+    # a recepção vê a grade de 15 em 15 minutos, já com a duração escolhida
+    dia = amanha("x")[:10]
+    r = client.post("/consultas/nova", follow_redirects=True, data=dict(dados, data=dia, hora="09:15",
+                                                                         duracao_min="45"))
+    assert "Consulta salva" in r.get_data(as_text=True)
+    html = client.get(f"/consultas/nova?paciente_id=1&profissional_id=1&data={dia}&duracao_min=30").get_data(as_text=True)
+    assert 'value="07:00"' in html and 'value="07:15"' in html and 'value="19:30"' in html
+    assert 'value="19:45"' not in html            # terminaria depois das 20h
+    assert "<s>09:00</s>" in html and "<s>09:45</s>" in html and 'value="10:00"' in html
+    # com duração de 60 min, 08:30 também bate na consulta das 09:15
+    html = client.get(f"/consultas/nova?profissional_id=1&data={dia}&duracao_min=60").get_data(as_text=True)
+    assert "<s>08:30</s>" in html and 'value="08:15"' in html and 'value="19:00"' in html
+    # outro paciente com outro profissional: o paciente 1 aparece ocupado
+    html = client.get(f"/consultas/nova?paciente_id=1&profissional_id=2&data={dia}&duracao_min=30").get_data(as_text=True)
+    assert "Paciente ocupado" in html
+    # na edição, o horário atual continua disponível e marcado
+    html = client.get("/consultas/1/editar").get_data(as_text=True)
+    assert f'value="{dia}"' in html and 'value="09:15" checked' in html and "atual" in html
+    # sem profissional ou dia, ainda não há grade nem botão Salvar
     html = client.get("/consultas/nova").get_data(as_text=True)
-    assert 'max="9999-12-31T23:59"' in html and 'step="300"' in html and 'min="' in html
+    assert "Ver horários" in html and ">Salvar<" not in html
     # filtro com data estranha não quebra a lista
     assert client.get("/consultas?data=123121-03-12").status_code == 200
 

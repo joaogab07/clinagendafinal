@@ -5,7 +5,7 @@ Executar:  python app.py   (cria o banco na primeira vez e sobe em http://127.0.
 import os
 import secrets
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 from functools import wraps
 
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, request,
@@ -96,7 +96,8 @@ def registrar_rotas(app):
 
     @app.context_processor
     def contexto():
-        return {"csrf": session.get("csrf", ""), "formatar_cpf": formatar_cpf}
+        return {"csrf": session.get("csrf", ""), "formatar_cpf": formatar_cpf,
+                "agora": datetime.now().strftime("%Y-%m-%dT%H:%M")}
 
     @app.template_filter("dt")
     def filtro_data_hora(valor):
@@ -466,6 +467,22 @@ def registrar_rotas(app):
         else:
             flash("Só é possível cancelar consultas que ainda estão agendadas.", "erro")
         return redirect(url_for("consultas"))
+
+    @app.route("/consultas/<int:id>/realizar", methods=["POST"])
+    @login_required
+    def consulta_realizar(id):
+        """Atalho da lista: marca como realizada uma consulta agendada cujo horário já chegou."""
+        db = get_db()
+        agora = datetime.now().strftime("%Y-%m-%dT%H:%M")
+        if db.execute("UPDATE consulta SET status = 'realizada' WHERE id = ? "
+                      "AND status = 'agendada' AND data_hora <= ?", (id, agora)).rowcount:
+            db.commit()
+            flash("Consulta marcada como realizada.", "ok")
+        else:
+            flash("Só é possível marcar como realizada uma consulta agendada cujo horário "
+                  "já começou.", "erro")
+        return redirect(request.referrer if (request.referrer or "").startswith(request.host_url)
+                        else url_for("consultas"))
 
     @app.route("/consultas/<int:id>/excluir", methods=["POST"])
     @admin_required

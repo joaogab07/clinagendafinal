@@ -265,3 +265,25 @@ def test_reagendar_cancelada_no_passado(client):
         "paciente_id": "1", "profissional_id": "1", "data_hora": ontem, "duracao_min": "30",
         "status": "agendada"})
     assert "passado" in r.get_data(as_text=True)
+
+
+def test_botao_marcar_realizada(client):
+    entrar(client)
+    novo_paciente(client)
+    client.post("/consultas/nova", data={"paciente_id": "1", "profissional_id": "1",
+                                         "data_hora": amanha("10:00"), "duracao_min": "30"})
+    # consulta de amanhã: botão não aparece e o atalho é recusado
+    assert "Marcar realizada" not in client.get("/consultas").get_data(as_text=True)
+    r = client.post("/consultas/1/realizar", follow_redirects=True)
+    assert "Só é possível marcar como realizada" in r.get_data(as_text=True)
+    # consulta que já começou: botão aparece e funciona
+    passado = (datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
+    with client.application.app_context():
+        from database import get_db
+        db = get_db()
+        db.execute("UPDATE consulta SET data_hora = ? WHERE id = 1", (passado,))
+        db.commit()
+    assert "Marcar realizada" in client.get("/consultas").get_data(as_text=True)
+    r = client.post("/consultas/1/realizar", follow_redirects=True)
+    texto = r.get_data(as_text=True)
+    assert "marcada como realizada" in texto and "Marcar realizada" not in texto

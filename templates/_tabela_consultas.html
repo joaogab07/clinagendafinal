@@ -12,6 +12,10 @@
       {% if acoes %}
       <td class="acoes">
         <a href="{{ url_for('consulta_form', id=c.id) }}">Editar</a>
+        {% if c.status == 'agendada' and c.data_hora <= agora %}
+        <form method="post" action="{{ url_for('consulta_realizar', id=c.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Marcar realizada</button></form>
+        {% endif %}
         {% if c.status == 'agendada' %}
         <form method="post" action="{{ url_for('consulta_cancelar', id=c.id) }}" onsubmit="return confirm('Cancelar esta consulta?')">
           <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Cancelar</button></form>

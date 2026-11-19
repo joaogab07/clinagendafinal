@@ -16,6 +16,11 @@ def cpf_valido(cpf: str) -> bool:
     return len(somente_digitos(cpf)) == 11
 
 
+def telefone_valido(telefone: str) -> bool:
+    """DDD + número: 10 dígitos (fixo) ou 11 (celular)."""
+    return len(somente_digitos(telefone)) in (10, 11)
+
+
 def formatar_cpf(cpf: str) -> str:
     n = somente_digitos(cpf)
     return f"{n[:3]}.{n[3:6]}.{n[6:9]}-{n[9:]}" if len(n) == 11 else cpf
@@ -86,6 +91,8 @@ class Profissional:
             erros.append("Informe o registro profissional (CRM, CRO...).")
         if not self.especialidade_id:
             erros.append("Selecione a especialidade.")
+        if self.telefone and not telefone_valido(self.telefone):
+            erros.append("Telefone deve ter DDD e número (10 ou 11 números).")
         if self.email and not EMAIL_RE.match(self.email):
             erros.append("E-mail inválido.")
         return erros
@@ -115,8 +122,8 @@ class Paciente:
                 erros.append("Confira a data de nascimento (ano anterior a 1900).")
         except ValueError:
             erros.append("Data de nascimento inválida.")
-        if len(somente_digitos(self.telefone)) < 10:
-            erros.append("Telefone deve ter DDD e número.")
+        if not telefone_valido(self.telefone):
+            erros.append("Telefone deve ter DDD e número (10 ou 11 números).")
         if self.email and not EMAIL_RE.match(self.email):
             erros.append("E-mail inválido.")
         return erros

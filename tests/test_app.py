@@ -215,3 +215,53 @@ def test_verificar_login_enquanto_digita(client):
                                "mensagem": "Esse login já pertence a outro usuário. Escolha outro."}
     assert checar("ab")["disponivel"] is False          # curto demais
     assert checar("nome com espaço")["disponivel"] is False
+
+
+def test_chave_secreta_nao_e_a_do_codigo(client):
+    chave = client.application.config["SECRET_KEY"]
+    assert chave != "troque-esta-chave-em-producao" and len(chave) >= 32
+
+
+def test_paginas_de_erro_em_portugues(client):
+    entrar(client)
+    r = client.get("/pacientes/1/excluir")
+    assert r.status_code == 405 and "botões do sistema" in r.get_data(as_text=True)
+
+
+def test_validacoes_finas(client):
+    entrar(client)
+    novo_paciente(client)
+    # duração 0 é recusada (antes virava 30 sem avisar)
+    r = client.post("/consultas/nova", follow_redirects=True, data={
+        "paciente_id": "1", "profissional_id": "1", "data_hora": amanha("10:00"), "duracao_min": "0"})
+    assert "entre 10 e 240" in r.get_data(as_text=True)
+    # telefone com números demais
+    r = client.post("/pacientes/novo", follow_redirects=True, data={
+        "nome": "X", "cpf": "11122233344", "data_nascimento": "1990-01-01", "telefone": "439999912345678"})
+    assert "10 ou 11 números" in r.get_data(as_text=True)
+    # especialidade e registro repetidos com outra caixa/espaços
+    r = client.post("/especialidades/nova", data={"nome": "PEDIATRIA"}, follow_redirects=True)
+    assert "Já existe uma especialidade" in r.get_data(as_text=True)
+    r = client.post("/profissionais/novo", follow_redirects=True, data={
+        "nome": "Outro", "registro": "crm-pr12345", "especialidade_id": "1", "ativo": "1"})
+    assert "Já existe um profissional" in r.get_data(as_text=True)
+    # editar a própria especialidade sem mudar o nome continua funcionando
+    r = client.post("/especialidades/2/editar", data={"nome": "Pediatria", "descricao": "Crianças"},
+                    follow_redirects=True)
+    assert "Especialidade salva" in r.get_data(as_text=True)
+
+
+def test_reagendar_cancelada_no_passado(client):
+    entrar(client)
+    novo_paciente(client)
+    ontem = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT10:00")
+    with client.application.app_context():
+        from database import get_db
+        db = get_db()
+        db.execute("INSERT INTO consulta (paciente_id, profissional_id, usuario_id, data_hora, status) "
+                   "VALUES (1, 1, 1, ?, 'cancelada')", (ontem,))
+        db.commit()
+    r = client.post("/consultas/1/editar", follow_redirects=True, data={
+        "paciente_id": "1", "profissional_id": "1", "data_hora": ontem, "duracao_min": "30",
+        "status": "agendada"})
+    assert "passado" in r.get_data(as_text=True)

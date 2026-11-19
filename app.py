@@ -18,10 +18,24 @@ from models import (Consulta, Especialidade, Paciente, Profissional, Usuario,
                     formatar_cpf, somente_digitos)
 
 
+def carregar_chave_secreta(pasta):
+    """A chave que assina o cookie de login não pode ficar no código (o repositório é público).
+    Usa a variável de ambiente SECRET_KEY ou, se não houver, gera uma chave aleatória na
+    primeira execução e guarda no arquivo .secret_key (que o .gitignore deixa fora do Git)."""
+    if os.environ.get("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    arquivo = os.path.join(pasta, ".secret_key")
+    if not os.path.exists(arquivo):
+        with open(arquivo, "w", encoding="utf-8") as f:
+            f.write(secrets.token_hex(32))
+    with open(arquivo, encoding="utf-8") as f:
+        return f.read().strip()
+
+
 def create_app(config=None):
     app = Flask(__name__)
     app.config.update(
-        SECRET_KEY=os.environ.get("SECRET_KEY", "troque-esta-chave-em-producao"),
+        SECRET_KEY=carregar_chave_secreta(app.root_path),
         DATABASE=os.path.join(app.root_path, "clinagenda.db"),
     )
     if config:
@@ -105,7 +119,17 @@ def registrar_rotas(app):
 
     @app.errorhandler(404)
     def nao_encontrado(_e):
-        return render_template("erro.html", codigo=404, msg="Registro não encontrado."), 404
+        return render_template("erro.html", codigo=404, msg="Página ou registro não encontrado."), 404
+
+    @app.errorhandler(405)
+    def metodo_nao_permitido(_e):
+        return render_template("erro.html", codigo=405,
+                               msg="Essa ação só pode ser feita pelos botões do sistema."), 405
+
+    @app.errorhandler(500)
+    def erro_interno(_e):
+        return render_template("erro.html", codigo=500,
+                               msg="Ocorreu um erro inesperado. Tente novamente."), 500
 
     # ------------------------------------------------------- UC01 Autenticar --
     @app.route("/login", methods=["GET", "POST"])
@@ -276,6 +300,10 @@ def registrar_rotas(app):
                              form_int("especialidade_id"), form_str("telefone"),
                              form_str("email"), request.form.get("ativo") == "1")
             erros = p.validar()
+            if not erros and db.execute("SELECT 1 FROM profissional WHERE upper(replace(registro, ' ', '')) "
+                                        "= upper(replace(?, ' ', '')) AND id IS NOT ?",
+                                        (p.registro, id)).fetchone():
+                erros.append("Já existe um profissional com este registro.")
             if not erros:
                 try:
                     dados = (p.nome, p.registro, p.telefone, p.email, int(p.ativo),
@@ -326,6 +354,9 @@ def registrar_rotas(app):
         if request.method == "POST":
             e = Especialidade(id, form_str("nome"), form_str("descricao"))
             erros = e.validar()
+            if not erros and db.execute("SELECT 1 FROM especialidade WHERE lower(nome) = lower(?) "
+                                        "AND id IS NOT ?", (e.nome, id)).fetchone():
+                erros.append("Já existe uma especialidade com este nome.")
             if not erros:
                 try:
                     if id:
@@ -381,12 +412,14 @@ def registrar_rotas(app):
         if id:
             row = db.execute("SELECT * FROM consulta WHERE id = ?", (id,)).fetchone() or abort(404)
         if request.method == "POST":
+            duracao = form_int("duracao_min")
             c = Consulta(id, form_int("paciente_id"), form_int("profissional_id"),
-                         form_str("data_hora"), form_int("duracao_min") or 30,
+                         form_str("data_hora"), duracao if duracao is not None else 30,
                          form_str("status") or "agendada", form_str("observacoes"),
                          g.usuario.id)
             mudou_horario = (not id or row["data_hora"] != c.data_hora
-                             or row["profissional_id"] != c.profissional_id)
+                             or row["profissional_id"] != c.profissional_id
+                             or (row["status"] != "agendada" and c.status == "agendada"))
             erros = c.validar(nova=mudou_horario)
             if not erros and c.status == "agendada":
                 conflito = buscar_conflito(c, "profissional_id")

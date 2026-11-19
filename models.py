@@ -35,6 +35,10 @@ class Usuario:
         return self.perfil == "admin"
 
     @staticmethod
+    def login_valido(login: str) -> bool:
+        return re.fullmatch(r"[a-zA-Z0-9._]{3,30}", login) is not None
+
+    @staticmethod
     def validar_nova_senha(senha: str, confirmacao: str) -> list:
         erros = []
         if len(senha) < 6:
@@ -49,7 +53,7 @@ class Usuario:
         erros = []
         if len(nome.strip()) < 3:
             erros.append("Informe seu nome completo.")
-        if not re.fullmatch(r"[a-zA-Z0-9._]{3,30}", login):
+        if not Usuario.login_valido(login):
             erros.append("O login deve ter de 3 a 30 caracteres, usando letras, números, ponto ou _.")
         return erros + Usuario.validar_nova_senha(senha, confirmacao)
 

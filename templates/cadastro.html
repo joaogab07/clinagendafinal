@@ -6,10 +6,38 @@
   <p class="sub">Acesso para a recepção da clínica</p>
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label>Nome completo <input name="nome" value="{{ request.form.nome or '' }}" required autofocus></label>
-  <label>Login <input name="login" value="{{ request.form.login or '' }}" placeholder="ex.: maria.silva" required></label>
+  <label>Login <input name="login" id="campo-login" value="{{ request.form.login or '' }}" placeholder="ex.: maria.silva"
+                      autocomplete="username" aria-describedby="aviso-login" required>
+    <span id="aviso-login" class="dica" aria-live="polite"></span></label>
   <label>Senha <input name="senha" type="password" minlength="6" required></label>
   <label>Confirmar senha <input name="confirmacao" type="password" minlength="6" required></label>
   <button class="btn">Cadastrar</button>
   <p class="rodape-form">Já tem conta? <a href="{{ url_for('login') }}">Entrar</a></p>
 </form>
+<script>
+  // Confere o login no servidor quando a pessoa para de digitar (ou sai do campo)
+  (function () {
+    var campo = document.getElementById("campo-login");
+    var aviso = document.getElementById("aviso-login");
+    var espera, ultimo = "";
+
+    function verificar() {
+      var valor = campo.value.trim();
+      if (valor === ultimo) return;
+      ultimo = valor;
+      if (!valor) { aviso.textContent = ""; aviso.className = "dica"; return; }
+      fetch("{{ url_for('verificar_login') }}?login=" + encodeURIComponent(valor))
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (campo.value.trim() !== valor) return;   // a pessoa já digitou outra coisa
+          aviso.textContent = (res.disponivel ? "✔ " : "✖ ") + res.mensagem;
+          aviso.className = "dica " + (res.disponivel ? "ok" : "erro");
+        })
+        .catch(function () { aviso.textContent = ""; });
+    }
+
+    campo.addEventListener("input", function () { clearTimeout(espera); espera = setTimeout(verificar, 500); });
+    campo.addEventListener("blur", verificar);
+  })();
+</script>
 {% endblock %}

@@ -8,7 +8,7 @@ import sqlite3
 from datetime import date
 from functools import wraps
 
-from flask import (Flask, abort, flash, g, redirect, render_template, request,
+from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, request,
                    session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -143,10 +143,22 @@ def registrar_rotas(app):
                     flash("Conta criada com sucesso. Bem-vindo(a)!", "ok")
                     return redirect(url_for("inicio"))
                 except sqlite3.IntegrityError:
-                    erros.append("Este login já está em uso. Escolha outro.")
+                    erros.append(MSG_LOGIN_EM_USO)
             for e in erros:
                 flash(e, "erro")
         return render_template("cadastro.html")
+
+    @app.route("/cadastro/verificar-login")
+    def verificar_login():
+        """Usado pela tela de cadastro para avisar, enquanto a pessoa digita,
+        se o login escolhido é válido e se já pertence a outro usuário."""
+        login_ = request.args.get("login", "").strip().lower()
+        if not Usuario.login_valido(login_):
+            return jsonify(disponivel=False, mensagem=MSG_LOGIN_FORMATO)
+        existe = get_db().execute("SELECT 1 FROM usuario WHERE login = ?", (login_,)).fetchone()
+        if existe:
+            return jsonify(disponivel=False, mensagem=MSG_LOGIN_EM_USO)
+        return jsonify(disponivel=True, mensagem="Login disponível.")
 
     @app.route("/conta", methods=["GET", "POST"])
     @login_required
@@ -428,6 +440,9 @@ def registrar_rotas(app):
         excluir_registro("consulta", id, "")
         return redirect(url_for("consultas"))
 
+
+MSG_LOGIN_EM_USO = "Esse login já pertence a outro usuário. Escolha outro."
+MSG_LOGIN_FORMATO = "O login deve ter de 3 a 30 caracteres, usando letras, números, ponto ou _."
 
 SQL_CONSULTAS = (
     "SELECT c.*, pa.nome AS paciente, pr.nome AS profissional, e.nome AS especialidade "

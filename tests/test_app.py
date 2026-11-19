@@ -47,7 +47,7 @@ def test_cadastro_de_conta(client):
     texto = r.get_data(as_text=True)
     assert "Conta criada" in texto and "Olá, Ana Recepção" in texto
     client.get("/logout")
-    assert "já está em uso" in client.post("/cadastro", data=dados, follow_redirects=True).get_data(as_text=True)
+    assert "pertence a outro usuário" in client.post("/cadastro", data=dados, follow_redirects=True).get_data(as_text=True)
     r = client.post("/cadastro", follow_redirects=True,
                     data=dict(dados, login="ana2", confirmacao="outra"))
     assert "não conferem" in r.get_data(as_text=True)
@@ -205,3 +205,13 @@ def test_alterar_senha(client):
     client.get("/logout")
     assert "incorretos" in entrar(client, "admin", "admin123").get_data(as_text=True)
     assert "Olá, Administrador" in entrar(client, "admin", "nova123").get_data(as_text=True)
+
+
+def test_verificar_login_enquanto_digita(client):
+    def checar(login):
+        return client.get("/cadastro/verificar-login", query_string={"login": login}).get_json()
+    assert checar("pedro")["disponivel"] is True
+    assert checar("ADMIN") == {"disponivel": False,
+                               "mensagem": "Esse login já pertence a outro usuário. Escolha outro."}
+    assert checar("ab")["disponivel"] is False          # curto demais
+    assert checar("nome com espaço")["disponivel"] is False

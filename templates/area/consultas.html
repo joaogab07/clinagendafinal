@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Minhas consultas{% endblock %}
+{% block conteudo %}
+<div class="cabecalho"><h1>Minhas consultas</h1>
+  <a class="btn" href="{{ url_for('area_agendar') }}">+ Agendar consulta</a></div>
+<table>
+  <thead><tr><th>Data e hora</th><th>Profissional</th><th>Duração</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for c in consultas %}
+    <tr>
+      <td>{{ c.data_hora|dt }}</td>
+      <td>{{ c.profissional }}<br><small>{{ c.especialidade }}</small></td>
+      <td>{{ c.duracao_min }} min</td>
+      <td><span class="status {{ c.status }}">{{ {'agendada':'◷ Agendada','realizada':'✔ Realizada','cancelada':'✖ Cancelada'}[c.status] }}</span></td>
+      <td class="acoes">
+        {% if c.status == 'agendada' and c.data_hora > agora %}
+        <form method="post" action="{{ url_for('area_cancelar', id=c.id) }}" onsubmit="return confirm('Cancelar esta consulta?')">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link perigo">Cancelar</button></form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="vazio">Você ainda não tem consultas. <a href="{{ url_for('area_agendar') }}">Agendar a primeira</a></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_paginacao.html" %}
+{% endblock %}

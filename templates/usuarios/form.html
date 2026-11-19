@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Nova conta de Recepção{% endblock %}
+{% block largura %}estreito{% endblock %}
+{% block conteudo %}
+<h1>Nova conta de Recepção</h1>
+<form class="cartao formulario" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Nome completo* <input name="nome" value="{{ request.form.nome or '' }}" required autofocus></label>
+  <label>Login* <input name="login" value="{{ request.form.login or '' }}" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
+  <div class="linha">
+    <label>Senha inicial* <input name="senha" type="password" minlength="6" autocomplete="new-password" required></label>
+    <label>Confirmar senha* <input name="confirmacao" type="password" minlength="6" autocomplete="new-password" required></label>
+  </div>
+  <p class="dica-texto">A pessoa pode trocar a senha depois, em Minha conta.</p>
+  <div class="botoes"><button class="btn">Criar conta</button>
+    <a class="btn secundario" href="{{ url_for('usuarios') }}">Voltar</a></div>
+</form>
+{% endblock %}

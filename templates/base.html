@@ -13,12 +13,19 @@
  <div class="topo-interno">
   <a class="marca" href="{{ url_for('inicio') }}">ClinAgenda</a>
   <nav>
+    {% if g.usuario.is_paciente() %}
+    <a href="{{ url_for('area_consultas') }}">Minhas consultas</a>
+    <a href="{{ url_for('area_agendar') }}">Agendar</a>
+    <a href="{{ url_for('area_dados') }}">Meus dados</a>
+    {% else %}
     <a href="{{ url_for('consultas') }}">Consultas</a>
     <a href="{{ url_for('pacientes') }}">Pacientes</a>
     <a href="{{ url_for('profissionais') }}">Profissionais</a>
-    {% if g.usuario.is_admin() %}<a href="{{ url_for('especialidades') }}">Especialidades</a>{% endif %}
+    {% if g.usuario.is_admin() %}<a href="{{ url_for('especialidades') }}">Especialidades</a>
+    <a href="{{ url_for('usuarios') }}">Usuários</a>{% endif %}
+    {% endif %}
   </nav>
-  <div class="usuario">{{ g.usuario.nome }} ({{ 'Administrador' if g.usuario.is_admin() else 'Recepção' }})
+  <div class="usuario">{{ g.usuario.nome }} ({{ g.usuario.rotulo_perfil }})
     · <a href="{{ url_for('conta') }}">Minha conta</a> · <a href="{{ url_for('logout') }}">Sair</a></div>
  </div>
 </header>

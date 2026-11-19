@@ -27,10 +27,35 @@ def close_db(_exc=None):
         db.close()
 
 
+def migrar_usuario(db):
+    """Bancos criados antes do perfil Paciente têm a tabela usuario sem a coluna paciente_id e
+    com a regra antiga de perfis. O SQLite não altera regras CHECK, então a tabela é recriada
+    com a estrutura nova e os usuários existentes são copiados (procedimento oficial do SQLite)."""
+    colunas = [c[1] for c in db.execute("PRAGMA table_info(usuario)")]
+    if not colunas or "paciente_id" in colunas:
+        return
+    ddl = SCHEMA.read_text(encoding="utf-8")
+    inicio = ddl.index("CREATE TABLE IF NOT EXISTS usuario")
+    fim = ddl.index(");", inicio) + 2
+    nova = ddl[inicio:fim].replace("CREATE TABLE IF NOT EXISTS usuario", "CREATE TABLE usuario_novo")
+    db.executescript(f"""
+        PRAGMA foreign_keys = OFF;
+        BEGIN;
+        {nova}
+        INSERT INTO usuario_novo (id, nome, login, senha_hash, perfil)
+            SELECT id, nome, login, senha_hash, perfil FROM usuario;
+        DROP TABLE usuario;
+        ALTER TABLE usuario_novo RENAME TO usuario;
+        COMMIT;
+        PRAGMA foreign_keys = ON;
+    """)
+
+
 def init_db(seed=True):
     """Cria as tabelas e, se o banco estiver vazio, insere o administrador e exemplos."""
     db = get_db()
     db.executescript(SCHEMA.read_text(encoding="utf-8"))
+    migrar_usuario(db)
     if seed and db.execute("SELECT COUNT(*) FROM usuario").fetchone()[0] == 0:
         db.executemany(
             "INSERT INTO usuario (nome, login, senha_hash, perfil) VALUES (?, ?, ?, ?)",

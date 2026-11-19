@@ -27,6 +27,15 @@ def amanha(hora="10:00"):
     return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d") + "T" + hora
 
 
+def conta_paciente(login="ana", senha="segredo1", **extra):
+    """Dados do formulário de Criar conta (paciente). CPF e nascimento podem ser trocados."""
+    dados = {"nome": "Ana Paciente", "cpf": "111.222.333-44", "data_nascimento": "1995-04-20",
+             "telefone": "(43) 98888-7777", "email": "", "login": login,
+             "senha": senha, "confirmacao": senha}
+    dados.update(extra)
+    return dados
+
+
 def novo_paciente(client, cpf=CPF_OK):
     return client.post("/pacientes/novo", follow_redirects=True, data={
         "nome": "Maria Teste", "cpf": cpf, "data_nascimento": "1990-05-10",
@@ -42,18 +51,25 @@ def test_cpf():
 
 
 def test_cadastro_de_conta(client):
-    dados = {"nome": "Ana Recepção", "login": "ana", "senha": "segredo1", "confirmacao": "segredo1"}
-    r = client.post("/cadastro", data=dados, follow_redirects=True)
+    r = client.post("/cadastro", data=conta_paciente(), follow_redirects=True)
     texto = r.get_data(as_text=True)
-    assert "Conta criada" in texto and "Olá, Ana Recepção" in texto
+    assert "Conta criada" in texto and "Ana Paciente (Paciente)" in texto and "Minhas consultas" in texto
     client.get("/logout")
-    assert "pertence a outro usuário" in client.post("/cadastro", data=dados, follow_redirects=True).get_data(as_text=True)
-    r = client.post("/cadastro", follow_redirects=True,
-                    data=dict(dados, login="ana2", confirmacao="outra"))
+    # login repetido, senhas diferentes e CPF incompleto
+    r = client.post("/cadastro", data=conta_paciente(cpf="555.666.777-88"), follow_redirects=True)
+    assert "pertence a outro usuário" in r.get_data(as_text=True)
+    r = client.post("/cadastro", follow_redirects=True, data=conta_paciente("ana2", confirmacao="outra"))
     assert "não conferem" in r.get_data(as_text=True)
-    # nova conta entra com perfil Recepção (sem acesso à área do admin)
+    r = client.post("/cadastro", follow_redirects=True, data=conta_paciente("ana3", cpf="123"))
+    assert "11 números" in r.get_data(as_text=True)
+    # a conta criada é de paciente: não entra nas telas da clínica
     entrar(client, "ana", "segredo1")
-    assert client.get("/especialidades").status_code == 403
+    for url in ("/", "/pacientes", "/pacientes/novo", "/consultas", "/consultas/nova",
+                "/profissionais", "/especialidades", "/usuarios"):
+        r = client.get(url)
+        assert r.status_code in (302, 403), url
+        if r.status_code == 302:
+            assert r.headers["Location"].endswith("/minha-area"), url
 
 
 def test_conflito_de_horario():
@@ -138,28 +154,27 @@ def test_crud_consulta_com_regras(client):
 
 
 def test_login_tem_que_ser_digitado_igual(client):
-    client.post("/cadastro", data={"nome": "João Silva", "login": "João",
-                                   "senha": "123456", "confirmacao": "123456"})
+    client.post("/cadastro", data=conta_paciente("João", "123456", nome="João Silva"))
     client.get("/logout")
     for errado in ("joão", "JOÃO", "Joao", "joao"):
         assert "incorretos" in entrar(client, errado, "123456").get_data(as_text=True)
-    assert "Olá, João Silva" in entrar(client, "João", "123456").get_data(as_text=True)
+    assert "João Silva (Paciente)" in entrar(client, "João", "123456").get_data(as_text=True)
     client.get("/logout")
     # login só é repetido se for exatamente igual: "joao" e "JOÃO" podem ser outras contas
     assert client.get("/cadastro/verificar-login",
                       query_string={"login": "João"}).get_json()["disponivel"] is False
-    r = client.post("/cadastro", follow_redirects=True, data={
-        "nome": "Outra Pessoa", "login": "João", "senha": "123456", "confirmacao": "123456"})
+    r = client.post("/cadastro", follow_redirects=True,
+                    data=conta_paciente("João", "123456", nome="Outra Pessoa", cpf="999.888.777-66"))
     assert "pertence a outro usuário" in r.get_data(as_text=True)
-    for diferente in ("joao", "JOÃO"):
+    for diferente, cpf in (("joao", "999.888.777-66"), ("JOÃO", "999.888.777-55")):
         assert client.get("/cadastro/verificar-login",
                           query_string={"login": diferente}).get_json()["disponivel"] is True
-        r = client.post("/cadastro", follow_redirects=True, data={
-            "nome": "Outra Pessoa", "login": diferente, "senha": "654321", "confirmacao": "654321"})
+        r = client.post("/cadastro", follow_redirects=True,
+                        data=conta_paciente(diferente, "654321", nome="Outra Pessoa", cpf=cpf))
         assert "Conta criada" in r.get_data(as_text=True)
         client.get("/logout")
     # cada um entra com a sua própria senha
-    assert "Olá, João Silva" in entrar(client, "João", "123456").get_data(as_text=True)
+    assert "João Silva (Paciente)" in entrar(client, "João", "123456").get_data(as_text=True)
 
 
 def test_login_nao_redireciona_para_outro_site(client):
@@ -359,3 +374,145 @@ def test_listas_paginadas(client):
     # o filtro é mantido nos links de página
     filtrado = client.get("/pacientes?q=paciente&pagina=2").get_data(as_text=True)
     assert "q=paciente" in filtrado and "Mostrando 51–100 de 120" in filtrado
+
+
+
+# ------------------------------------------------------- perfil Paciente --
+def test_conta_liga_ao_cadastro_existente_pelo_cpf(client):
+    entrar(client)
+    novo_paciente(client)                       # recepção já cadastrou CPF 529.982.247-25 (Maria Teste)
+    client.get("/logout")
+    # data de nascimento diferente: não deixa "pegar" o cadastro de outra pessoa
+    r = client.post("/cadastro", follow_redirects=True,
+                    data=conta_paciente("maria", cpf=CPF_OK, data_nascimento="2000-01-01"))
+    assert "outra data de nascimento" in r.get_data(as_text=True)
+    # mesmo CPF e mesma data: liga a conta ao cadastro que já existe (sem duplicar)
+    r = client.post("/cadastro", follow_redirects=True,
+                    data=conta_paciente("maria", cpf=CPF_OK, data_nascimento="1990-05-10"))
+    assert "ligada ao seu cadastro" in r.get_data(as_text=True)
+    with client.application.app_context():
+        from database import get_db
+        assert get_db().execute("SELECT COUNT(*) FROM paciente").fetchone()[0] == 1
+    client.get("/logout")
+    # uma segunda conta para o mesmo CPF não é aceita
+    r = client.post("/cadastro", follow_redirects=True,
+                    data=conta_paciente("maria2", cpf=CPF_OK, data_nascimento="1990-05-10"))
+    assert "Já existe uma conta para este CPF" in r.get_data(as_text=True)
+
+
+def test_area_do_paciente(client):
+    # a recepção agenda uma consulta para outro paciente
+    entrar(client)
+    novo_paciente(client)
+    client.post("/consultas/nova", data={"paciente_id": "1", "profissional_id": "1",
+                                         "data_hora": amanha("09:00"), "duracao_min": "30"})
+    client.get("/logout")
+    # paciente cria conta e agenda a própria consulta
+    client.post("/cadastro", data=conta_paciente())
+    r = client.post("/minha-area/agendar", follow_redirects=True,
+                    data={"profissional_id": "2", "data_hora": amanha("10:00"), "observacoes": "Retorno"})
+    texto = r.get_data(as_text=True)
+    assert "Consulta agendada" in texto and "Dr. Bruno Lima" in texto
+    assert "Maria Teste" not in texto                     # não vê consulta de outro paciente
+    # regras valem para o paciente também
+    r = client.post("/minha-area/agendar", follow_redirects=True,
+                    data={"profissional_id": "1", "data_hora": amanha("09:15")})
+    assert "profissional já tem consulta" in r.get_data(as_text=True)
+    r = client.post("/minha-area/agendar", follow_redirects=True,
+                    data={"profissional_id": "3", "data_hora": amanha("10:15")})
+    assert "paciente já tem outra consulta" in r.get_data(as_text=True)
+    r = client.post("/minha-area/agendar", follow_redirects=True,
+                    data={"profissional_id": "3", "data_hora": amanha("21:00")})
+    assert "07h às 20h" in r.get_data(as_text=True)
+    # não consegue cancelar a consulta de outro paciente (id 1), só a própria (id 2)
+    r = client.post("/minha-area/consultas/1/cancelar", follow_redirects=True)
+    assert "Só é possível cancelar as suas" in r.get_data(as_text=True)
+    r = client.post("/minha-area/consultas/2/cancelar", follow_redirects=True)
+    assert "Consulta cancelada" in r.get_data(as_text=True)
+    with client.application.app_context():
+        from database import get_db
+        status = dict(get_db().execute("SELECT id, status FROM consulta").fetchall())
+    assert status == {1: "agendada", 2: "cancelada"}
+    # não usa as rotas da recepção para mexer em consultas
+    assert client.post("/consultas/1/cancelar").status_code == 403
+    assert client.get("/consultas/1/editar").status_code == 403
+    # edita só telefone, e-mail e endereço
+    r = client.post("/minha-area/dados", follow_redirects=True, data={
+        "telefone": "(43) 3333-2222", "email": "ana@exemplo.com", "endereco": "Rua Nova, 10",
+        "nome": "Nome Trocado", "cpf": "000.000.000-00"})
+    texto = r.get_data(as_text=True)
+    assert "Dados atualizados" in texto and "(43) 3333-2222" in texto
+    assert "Ana Paciente" in texto and "Nome Trocado" not in texto and "111.222.333-44" in texto
+    r = client.post("/minha-area/dados", follow_redirects=True, data={"telefone": "123"})
+    assert "10 ou 11 números" in r.get_data(as_text=True)
+
+
+def test_recepcao_e_admin_nao_usam_area_do_paciente(client):
+    entrar(client)
+    assert client.get("/minha-area").status_code == 403
+    assert client.get("/minha-area/agendar").status_code == 403
+
+
+def test_usuarios_do_admin(client):
+    entrar(client)
+    r = client.post("/usuarios/novo", follow_redirects=True, data={
+        "nome": "Carla Recepção", "login": "carla", "senha": "123456", "confirmacao": "123456"})
+    texto = r.get_data(as_text=True)
+    assert "Conta de Recepção criada" in texto and "carla" in texto
+    r = client.post("/usuarios/novo", follow_redirects=True, data={
+        "nome": "Outra", "login": "carla", "senha": "123456", "confirmacao": "123456"})
+    assert "pertence a outro usuário" in r.get_data(as_text=True)
+    # a nova recepcionista entra e usa as telas da clínica, mas não a de usuários
+    client.get("/logout")
+    entrar(client, "carla", "123456")
+    assert client.get("/pacientes").status_code == 200
+    assert client.get("/usuarios").status_code == 403
+    novo_paciente(client)
+    client.post("/consultas/nova", data={"paciente_id": "1", "profissional_id": "1",
+                                         "data_hora": amanha("10:00"), "duracao_min": "30"})
+    client.get("/logout")
+    entrar(client)
+    with client.application.app_context():
+        from database import get_db
+        carla = get_db().execute("SELECT id FROM usuario WHERE login = 'carla'").fetchone()[0]
+    # registrou consulta: não pode ser excluída; o admin não exclui a si mesmo
+    r = client.post(f"/usuarios/{carla}/excluir", follow_redirects=True)
+    assert "registrou consultas" in r.get_data(as_text=True)
+    r = client.post("/usuarios/1/excluir", follow_redirects=True)
+    assert "sua própria conta" in r.get_data(as_text=True)
+    # conta de paciente pode ser excluída; o cadastro do paciente continua
+    client.get("/logout")
+    client.post("/cadastro", data=conta_paciente())
+    client.get("/logout")
+    entrar(client)
+    with client.application.app_context():
+        from database import get_db
+        db = get_db()
+        conta, pac = db.execute("SELECT id, paciente_id FROM usuario WHERE login = 'ana'").fetchone()
+    r = client.post(f"/pacientes/{pac}/excluir", follow_redirects=True)
+    assert "tem conta de acesso" in r.get_data(as_text=True)
+    r = client.post(f"/usuarios/{conta}/excluir", follow_redirects=True)
+    assert "Registro excluído" in r.get_data(as_text=True)
+    assert "Ana Paciente" in client.get("/pacientes").get_data(as_text=True)
+
+
+def test_migracao_de_banco_antigo(tmp_path):
+    """Banco criado antes do perfil Paciente continua funcionando, com os usuários preservados."""
+    import sqlite3
+    caminho = tmp_path / "antigo.db"
+    db = sqlite3.connect(caminho)
+    db.executescript("""
+        CREATE TABLE usuario (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
+            login TEXT NOT NULL UNIQUE, senha_hash TEXT NOT NULL,
+            perfil TEXT NOT NULL CHECK (perfil IN ('admin', 'recepcao')));
+    """)
+    from werkzeug.security import generate_password_hash
+    db.execute("INSERT INTO usuario (nome, login, senha_hash, perfil) VALUES ('Velho Admin', 'velho', ?, 'admin')",
+               (generate_password_hash("abc123"),))
+    db.commit(); db.close()
+    app = create_app({"TESTING": True, "TESTING_SEM_CSRF": True, "DATABASE": str(caminho)})
+    c = app.test_client()
+    assert "Olá, Velho Admin" in entrar(c, "velho", "abc123").get_data(as_text=True)
+    c.get("/logout")
+    r = c.post("/cadastro", data=conta_paciente(), follow_redirects=True)
+    assert "Conta criada" in r.get_data(as_text=True)

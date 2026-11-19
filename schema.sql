@@ -2,11 +2,14 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS usuario (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome        TEXT    NOT NULL,
-    login       TEXT    NOT NULL UNIQUE,
-    senha_hash  TEXT    NOT NULL,
-    perfil      TEXT    NOT NULL CHECK (perfil IN ('admin', 'recepcao'))
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome         TEXT    NOT NULL,
+    login        TEXT    NOT NULL UNIQUE,
+    senha_hash   TEXT    NOT NULL,
+    perfil       TEXT    NOT NULL CHECK (perfil IN ('admin', 'recepcao', 'paciente')),
+    -- conta de paciente fica ligada ao cadastro dele (uma conta por paciente)
+    paciente_id  INTEGER UNIQUE REFERENCES paciente (id) ON DELETE RESTRICT,
+    CHECK ((perfil = 'paciente') = (paciente_id IS NOT NULL))
 );
 
 CREATE TABLE IF NOT EXISTS especialidade (

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}Meus dados{% endblock %}
+{% block largura %}estreito{% endblock %}
+{% block conteudo %}
+<h1>Meus dados</h1>
+<form class="cartao formulario" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <p style="margin:0"><strong>Nome:</strong> {{ p.nome }}<br>
+     <strong>CPF:</strong> {{ formatar_cpf(p.cpf) }}<br>
+     <strong>Nascimento:</strong> {{ p.data_nascimento|dt }}</p>
+  <p class="dica-texto">Para corrigir nome, CPF ou data de nascimento, procure a recepção.</p>
+  <div class="linha">
+    <label>Telefone* <input name="telefone" data-mascara="telefone" inputmode="tel" value="{{ p.telefone }}" required></label>
+    <label>E-mail <input type="email" name="email" value="{{ p.email or '' }}"></label>
+  </div>
+  <label>Endereço <input name="endereco" value="{{ p.endereco or '' }}"></label>
+  <div class="botoes"><button class="btn">Salvar</button>
+    <a class="btn secundario" href="{{ url_for('area_consultas') }}">Voltar</a></div>
+</form>
+{% endblock %}

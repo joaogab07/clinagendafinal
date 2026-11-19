@@ -67,6 +67,28 @@ def admin_required(view):
     return wrapper
 
 
+def equipe_required(view):
+    """Telas da clínica (pacientes, profissionais, consultas): Administrador e Recepção.
+    O paciente usa só a área dele."""
+    @wraps(view)
+    @login_required
+    def wrapper(*args, **kwargs):
+        if not g.usuario.is_equipe():
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapper
+
+
+def paciente_required(view):
+    @wraps(view)
+    @login_required
+    def wrapper(*args, **kwargs):
+        if not g.usuario.is_paciente():
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapper
+
+
 def form_str(nome):
     return (request.form.get(nome) or "").strip()
 
@@ -86,7 +108,8 @@ def registrar_rotas(app):
         if uid:
             row = get_db().execute("SELECT * FROM usuario WHERE id = ?", (uid,)).fetchone()
             if row:
-                g.usuario = Usuario(row["id"], row["nome"], row["login"], row["perfil"])
+                g.usuario = Usuario(row["id"], row["nome"], row["login"], row["perfil"],
+                                    row["paciente_id"])
         # proteção CSRF simples: todo POST precisa trazer o token da sessão
         if "csrf" not in session:
             session["csrf"] = secrets.token_hex(16)
@@ -149,27 +172,53 @@ def registrar_rotas(app):
 
     @app.route("/cadastro", methods=["GET", "POST"])
     def cadastro():
-        """Criação de conta: quem se cadastra entra com o perfil Recepção."""
+        """Criação de conta pelo próprio paciente. Ele informa seus dados e o CPF; se a clínica já
+        tiver um cadastro com esse CPF, a conta é ligada a ele (desde que a data de nascimento
+        confira), senão o cadastro do paciente é criado junto com a conta."""
         if g.usuario:
             return redirect(url_for("inicio"))
         if request.method == "POST":
-            nome, login_ = form_str("nome"), form_str("login")
+            db = get_db()
+            login_ = form_str("login")
             senha, confirmacao = request.form.get("senha", ""), request.form.get("confirmacao", "")
-            erros = Usuario.validar_cadastro(nome, login_, senha, confirmacao)
+            p = Paciente(None, form_str("nome"), somente_digitos(form_str("cpf")),
+                         form_str("data_nascimento"), form_str("telefone"), form_str("email"),
+                         form_str("endereco"))
+            erros = p.validar() + Usuario.validar_cadastro(p.nome, login_, senha, confirmacao)
             if not erros and login_existe(login_):
                 erros.append(MSG_LOGIN_EM_USO)
+            existente = None
             if not erros:
-                db = get_db()
+                existente = db.execute("SELECT * FROM paciente WHERE cpf = ?", (p.cpf,)).fetchone()
+                if existente and db.execute("SELECT 1 FROM usuario WHERE paciente_id = ?",
+                                            (existente["id"],)).fetchone():
+                    erros.append("Já existe uma conta para este CPF. Entre com o seu login ou "
+                                 "procure a recepção.")
+                elif existente and existente["data_nascimento"] != p.data_nascimento:
+                    # impede que alguém que só saiba o CPF de outra pessoa veja as consultas dela
+                    erros.append("O CPF já está cadastrado na clínica com outra data de nascimento. "
+                                 "Confira os dados ou procure a recepção.")
+            if not erros:
                 try:
-                    cur = db.execute("INSERT INTO usuario (nome, login, senha_hash, perfil) "
-                                     "VALUES (?, ?, ?, 'recepcao')",
-                                     (nome, login_, generate_password_hash(senha)))
+                    if existente:
+                        paciente_id = existente["id"]
+                    else:
+                        paciente_id = db.execute(
+                            "INSERT INTO paciente (nome, cpf, data_nascimento, telefone, email, endereco) "
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (p.nome, p.cpf, p.data_nascimento, p.telefone, p.email, p.endereco)).lastrowid
+                    cur = db.execute("INSERT INTO usuario (nome, login, senha_hash, perfil, paciente_id) "
+                                     "VALUES (?, ?, ?, 'paciente', ?)",
+                                     (existente["nome"] if existente else p.nome, login_,
+                                      generate_password_hash(senha), paciente_id))
                     db.commit()
                     session.clear()
                     session["usuario_id"] = cur.lastrowid
-                    flash("Conta criada com sucesso. Bem-vindo(a)!", "ok")
-                    return redirect(url_for("inicio"))
+                    flash("Conta criada com sucesso. Bem-vindo(a)!" if not existente else
+                          "Conta criada e ligada ao seu cadastro na clínica. Bem-vindo(a)!", "ok")
+                    return redirect(url_for("area_consultas"))
                 except sqlite3.IntegrityError:
+                    db.rollback()
                     erros.append(MSG_LOGIN_EM_USO)
             for e in erros:
                 flash(e, "erro")
@@ -219,6 +268,8 @@ def registrar_rotas(app):
     @app.route("/")
     @login_required
     def inicio():
+        if g.usuario.is_paciente():
+            return redirect(url_for("area_consultas"))
         db = get_db()
         hoje = date.today().isoformat()
         consultas = db.execute(SQL_CONSULTAS + " WHERE date(c.data_hora) = ? "
@@ -229,7 +280,7 @@ def registrar_rotas(app):
 
     # ------------------------------------------------- UC02 Manter pacientes --
     @app.route("/pacientes")
-    @login_required
+    @equipe_required
     def pacientes():
         busca = request.args.get("q", "").strip()
         sql, params = "SELECT * FROM paciente", ()
@@ -241,7 +292,7 @@ def registrar_rotas(app):
 
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @app.route("/pacientes/<int:id>/editar", methods=["GET", "POST"])
-    @login_required
+    @equipe_required
     def paciente_form(id=None):
         db = get_db()
         row = None
@@ -275,14 +326,17 @@ def registrar_rotas(app):
         return render_template("pacientes/form.html", p=row, id=id)
 
     @app.route("/pacientes/<int:id>/excluir", methods=["POST"])
-    @login_required
+    @equipe_required
     def paciente_excluir(id):
-        excluir_registro("paciente", id, "Paciente possui consultas e não pode ser excluído.")
+        if get_db().execute("SELECT 1 FROM usuario WHERE paciente_id = ?", (id,)).fetchone():
+            flash("Este paciente tem conta de acesso ao sistema. Exclua a conta em Usuários antes.", "erro")
+        else:
+            excluir_registro("paciente", id, "Paciente possui consultas e não pode ser excluído.")
         return redirect(url_for("pacientes"))
 
     # --------------------------------------------- UC03 Manter profissionais --
     @app.route("/profissionais")
-    @login_required
+    @equipe_required
     def profissionais():
         rows = get_db().execute(
             "SELECT p.*, e.nome AS especialidade FROM profissional p "
@@ -389,7 +443,7 @@ def registrar_rotas(app):
 
     # ------------------------------------------------ UC05 Agendar consultas --
     @app.route("/consultas")
-    @login_required
+    @equipe_required
     def consultas():
         filtros, params = [], []
         data = request.args.get("data", "")
@@ -410,7 +464,7 @@ def registrar_rotas(app):
 
     @app.route("/consultas/nova", methods=["GET", "POST"])
     @app.route("/consultas/<int:id>/editar", methods=["GET", "POST"])
-    @login_required
+    @equipe_required
     def consulta_form(id=None):
         db = get_db()
         row = None
@@ -426,26 +480,8 @@ def registrar_rotas(app):
             mudou_horario = (not id or row["data_hora"] != c.data_hora
                              or row["profissional_id"] != c.profissional_id
                              or (row["status"] != "agendada" and c.status == "agendada"))
-            erros = c.validar(nova=mudou_horario)
-            if c.paciente_id and not db.execute("SELECT 1 FROM paciente WHERE id = ?",
-                                                (c.paciente_id,)).fetchone():
-                erros.append("Paciente não encontrado.")
-            if c.profissional_id:
-                prof = db.execute("SELECT ativo FROM profissional WHERE id = ?",
-                                  (c.profissional_id,)).fetchone()
-                if not prof:
-                    erros.append("Profissional não encontrado.")
-                elif not prof["ativo"] and (not id or row["profissional_id"] != c.profissional_id):
-                    erros.append("Este profissional está inativo e não pode receber novas consultas.")
-            if not erros and c.status == "agendada":
-                conflito = buscar_conflito(c, "profissional_id")
-                if conflito:
-                    erros.append(f"O profissional já tem consulta às "
-                                 f"{conflito.inicio:%H:%M} nesse dia (até {conflito.fim:%H:%M}).")
-                conflito = buscar_conflito(c, "paciente_id")
-                if conflito:
-                    erros.append(f"O paciente já tem outra consulta às "
-                                 f"{conflito.inicio:%H:%M} nesse dia (até {conflito.fim:%H:%M}).")
+            prof_atual = row["profissional_id"] if id else None
+            erros = validar_agendamento(c, mudou_horario, prof_atual)
             if not erros:
                 dados = (c.paciente_id, c.profissional_id, c.data_hora, c.duracao_min,
                          c.status, c.observacoes)
@@ -472,7 +508,7 @@ def registrar_rotas(app):
                                pacientes=pacs, profissionais=profs)
 
     @app.route("/consultas/<int:id>/cancelar", methods=["POST"])
-    @login_required
+    @equipe_required
     def consulta_cancelar(id):
         db = get_db()
         if db.execute("UPDATE consulta SET status = 'cancelada' "
@@ -484,7 +520,7 @@ def registrar_rotas(app):
         return redirect(url_for("consultas"))
 
     @app.route("/consultas/<int:id>/realizar", methods=["POST"])
-    @login_required
+    @equipe_required
     def consulta_realizar(id):
         """Atalho da lista: marca como realizada uma consulta agendada cujo horário já chegou."""
         db = get_db()
@@ -504,6 +540,116 @@ def registrar_rotas(app):
     def consulta_excluir(id):
         excluir_registro("consulta", id, "")
         return redirect(url_for("consultas"))
+
+    # ---------------------------------------------- UC06 Área do paciente --
+    @app.route("/minha-area")
+    @paciente_required
+    def area_consultas():
+        """O paciente vê somente as próprias consultas."""
+        rows, pag = paginar(SQL_CONSULTAS + " WHERE c.paciente_id = ?", (g.usuario.paciente_id,),
+                            "ORDER BY c.data_hora DESC")
+        return render_template("area/consultas.html", consultas=rows, pag=pag)
+
+    @app.route("/minha-area/agendar", methods=["GET", "POST"])
+    @paciente_required
+    def area_agendar():
+        dados = None
+        if request.method == "POST":
+            c = Consulta(None, g.usuario.paciente_id, form_int("profissional_id"),
+                         form_str("data_hora"), 30, "agendada", form_str("observacoes"), g.usuario.id)
+            erros = validar_agendamento(c, nova=True)
+            if not erros:
+                db = get_db()
+                db.execute("INSERT INTO consulta (paciente_id, profissional_id, data_hora, duracao_min, "
+                           "status, observacoes, usuario_id) VALUES (?, ?, ?, ?, 'agendada', ?, ?)",
+                           (c.paciente_id, c.profissional_id, c.data_hora, c.duracao_min,
+                            c.observacoes, c.usuario_id))
+                db.commit()
+                flash("Consulta agendada com sucesso.", "ok")
+                return redirect(url_for("area_consultas"))
+            for e in erros:
+                flash(e, "erro")
+            dados = request.form
+        return render_template("area/agendar.html", c=dados, profissionais=profissionais_ativos())
+
+    @app.route("/minha-area/consultas/<int:id>/cancelar", methods=["POST"])
+    @paciente_required
+    def area_cancelar(id):
+        """O paciente só cancela as próprias consultas, agendadas e que ainda não começaram."""
+        db = get_db()
+        agora = datetime.now().strftime("%Y-%m-%dT%H:%M")
+        if db.execute("UPDATE consulta SET status = 'cancelada' WHERE id = ? AND paciente_id = ? "
+                      "AND status = 'agendada' AND data_hora > ?",
+                      (id, g.usuario.paciente_id, agora)).rowcount:
+            db.commit()
+            flash("Consulta cancelada.", "ok")
+        else:
+            flash("Só é possível cancelar as suas consultas agendadas que ainda não começaram.", "erro")
+        return redirect(url_for("area_consultas"))
+
+    @app.route("/minha-area/dados", methods=["GET", "POST"])
+    @paciente_required
+    def area_dados():
+        """O paciente atualiza telefone, e-mail e endereço. Nome, CPF e nascimento só a recepção muda."""
+        db = get_db()
+        atual = db.execute("SELECT * FROM paciente WHERE id = ?", (g.usuario.paciente_id,)).fetchone()
+        dados = atual
+        if request.method == "POST":
+            p = Paciente(atual["id"], atual["nome"], atual["cpf"], atual["data_nascimento"],
+                         form_str("telefone"), form_str("email"), form_str("endereco"))
+            erros = p.validar()
+            if not erros:
+                db.execute("UPDATE paciente SET telefone = ?, email = ?, endereco = ? WHERE id = ?",
+                           (p.telefone, p.email, p.endereco, p.id))
+                db.commit()
+                flash("Dados atualizados.", "ok")
+                return redirect(url_for("area_dados"))
+            for e in erros:
+                flash(e, "erro")
+            dados = dict(atual, telefone=p.telefone, email=p.email, endereco=p.endereco)
+        return render_template("area/dados.html", p=dados)
+
+    # ---------------------------------------------- UC07 Manter usuários --
+    @app.route("/usuarios")
+    @admin_required
+    def usuarios():
+        rows, pag = paginar("SELECT u.*, pa.cpf FROM usuario u LEFT JOIN paciente pa ON pa.id = u.paciente_id",
+                            (), "ORDER BY u.perfil, u.nome")
+        return render_template("usuarios/lista.html", usuarios=rows, pag=pag)
+
+    @app.route("/usuarios/novo", methods=["GET", "POST"])
+    @admin_required
+    def usuario_novo():
+        """O administrador cria as contas de Recepção (pacientes se cadastram sozinhos)."""
+        if request.method == "POST":
+            nome, login_ = form_str("nome"), form_str("login")
+            senha, confirmacao = request.form.get("senha", ""), request.form.get("confirmacao", "")
+            erros = Usuario.validar_cadastro(nome, login_, senha, confirmacao)
+            if not erros and login_existe(login_):
+                erros.append(MSG_LOGIN_EM_USO)
+            if not erros:
+                db = get_db()
+                db.execute("INSERT INTO usuario (nome, login, senha_hash, perfil) VALUES (?, ?, ?, 'recepcao')",
+                           (nome, login_, generate_password_hash(senha)))
+                db.commit()
+                flash("Conta de Recepção criada.", "ok")
+                return redirect(url_for("usuarios"))
+            for e in erros:
+                flash(e, "erro")
+        return render_template("usuarios/form.html")
+
+    @app.route("/usuarios/<int:id>/excluir", methods=["POST"])
+    @admin_required
+    def usuario_excluir(id):
+        db = get_db()
+        alvo = db.execute("SELECT perfil FROM usuario WHERE id = ?", (id,)).fetchone() or abort(404)
+        if id == g.usuario.id:
+            flash("Você não pode excluir a sua própria conta.", "erro")
+        elif alvo["perfil"] == "admin":
+            flash("Contas de administrador não podem ser excluídas por esta tela.", "erro")
+        else:
+            excluir_registro("usuario", id, "Este usuário registrou consultas e não pode ser excluído.")
+        return redirect(url_for("usuarios"))
 
 
 MSG_LOGIN_EM_USO = "Esse login já pertence a outro usuário. Escolha outro."
@@ -543,6 +689,39 @@ def login_existe(login_: str) -> bool:
     "João", "joao" e "JOAO" são logins diferentes."""
     return get_db().execute("SELECT 1 FROM usuario WHERE login = ?",
                             (login_,)).fetchone() is not None
+
+
+def validar_agendamento(c: Consulta, nova: bool, profissional_atual=None) -> list:
+    """Regras de uma consulta, usadas tanto pela recepção quanto pelo próprio paciente:
+    campos (RN02, RN03, RN08), paciente e profissional existentes, profissional ativo (RN05)
+    e conflito de horário do profissional e do paciente (RN04)."""
+    db = get_db()
+    erros = c.validar(nova=nova)
+    if c.paciente_id and not db.execute("SELECT 1 FROM paciente WHERE id = ?",
+                                        (c.paciente_id,)).fetchone():
+        erros.append("Paciente não encontrado.")
+    if c.profissional_id:
+        prof = db.execute("SELECT ativo FROM profissional WHERE id = ?", (c.profissional_id,)).fetchone()
+        if not prof:
+            erros.append("Profissional não encontrado.")
+        elif not prof["ativo"] and profissional_atual != c.profissional_id:
+            erros.append("Este profissional está inativo e não pode receber novas consultas.")
+    if not erros and c.status == "agendada":
+        conflito = buscar_conflito(c, "profissional_id")
+        if conflito:
+            erros.append(f"O profissional já tem consulta às "
+                         f"{conflito.inicio:%H:%M} nesse dia (até {conflito.fim:%H:%M}).")
+        conflito = buscar_conflito(c, "paciente_id")
+        if conflito:
+            erros.append(f"O paciente já tem outra consulta às "
+                         f"{conflito.inicio:%H:%M} nesse dia (até {conflito.fim:%H:%M}).")
+    return erros
+
+
+def profissionais_ativos():
+    return get_db().execute("SELECT p.id, p.nome, p.ativo, e.nome AS especialidade FROM profissional p "
+                            "JOIN especialidade e ON e.id = p.especialidade_id "
+                            "WHERE p.ativo = 1 ORDER BY p.nome").fetchall()
 
 
 def buscar_conflito(nova: Consulta, campo: str):

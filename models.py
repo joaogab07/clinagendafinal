@@ -40,15 +40,30 @@ def formatar_cpf(cpf: str) -> str:
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+PERFIS = {"admin": "Administrador", "recepcao": "Recepção", "paciente": "Paciente"}
+
+
 @dataclass
 class Usuario:
     id: Optional[int]
     nome: str
     login: str
-    perfil: str  # 'admin' ou 'recepcao'
+    perfil: str  # 'admin', 'recepcao' ou 'paciente'
+    paciente_id: Optional[int] = None   # só para o perfil paciente
 
     def is_admin(self) -> bool:
         return self.perfil == "admin"
+
+    def is_paciente(self) -> bool:
+        return self.perfil == "paciente"
+
+    def is_equipe(self) -> bool:
+        """Administrador ou Recepção: quem trabalha na clínica."""
+        return self.perfil in ("admin", "recepcao")
+
+    @property
+    def rotulo_perfil(self) -> str:
+        return PERFIS.get(self.perfil, self.perfil)
 
     @staticmethod
     def login_valido(login: str) -> bool:

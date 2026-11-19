@@ -6,7 +6,7 @@
 <div class="cartao formulario">
   <p style="margin:0"><strong>Nome:</strong> {{ g.usuario.nome }}<br>
      <strong>Login:</strong> {{ g.usuario.login }}<br>
-     <strong>Perfil:</strong> {{ 'Administrador' if g.usuario.is_admin() else 'Recepção' }}</p>
+     <strong>Perfil:</strong> {{ g.usuario.rotulo_perfil }}</p>
 </div>
 <h2>Alterar senha</h2>
 <form class="cartao formulario" method="post">

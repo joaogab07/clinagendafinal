@@ -5,7 +5,6 @@
   <h1>Esqueceu a senha?</h1>
   {% if enviado %}
     <p>✔ Se houver uma conta com esses dados, enviamos um link para redefinir a senha no e-mail cadastrado.</p>
-    <p class="dica-texto">Simulação: este projeto não tem servidor de e-mail, então nenhuma mensagem é enviada de verdade.</p>
     <a class="btn" href="{{ url_for('login') }}">Voltar ao login</a>
   {% else %}
     <p class="sub">Informe o seu login ou e-mail para receber um link de redefinição.</p>

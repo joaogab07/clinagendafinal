@@ -42,7 +42,7 @@ input[type=checkbox] { width: auto; }
 .linha { display: flex; gap: 14px; flex-wrap: wrap; }
 .botoes { display: flex; gap: 10px; }
 
-.btn { display: inline-block; padding: 9px 16px; border: 0; border-radius: 6px; background: var(--primaria); color: #fff; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.btn { display: inline-block; text-align: center; padding: 9px 16px; border: 0; border-radius: 6px; background: var(--primaria); color: #fff; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
 .btn:hover { background: var(--primaria-escura); }
 .btn.secundario { background: #e3e8ee; color: var(--texto); }
 button.link { background: none; border: 0; padding: 0; font: inherit; color: var(--primaria); text-decoration: underline; cursor: pointer; }

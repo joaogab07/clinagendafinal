@@ -12,9 +12,12 @@ O ClinAgenda é uma aplicação web para a recepção de uma clínica organizar 
 
 Funcionalidades (CRUD completo):
 
-- **Autenticação** com dois perfis: Administrador e Recepção
-- **Criar conta**: qualquer pessoa pode se cadastrar pela tela de login e entra com o perfil Recepção. O sistema avisa, enquanto a pessoa digita, se o login já pertence a outro usuário
-- **Minha conta**: o usuário logado troca a própria senha informando a atual
+- **Autenticação** com três perfis: Administrador, Recepção e Paciente. Cada perfil só acessa as telas permitidas a ele
+- **Criar conta (paciente)**: o paciente se cadastra pela tela de login informando nome, CPF, data de nascimento, telefone, login e senha. Se a clínica já tiver o cadastro daquele CPF e a data de nascimento conferir, a conta é ligada a ele. O sistema avisa, enquanto a pessoa digita, se o login já pertence a outro usuário
+- **Área do paciente**: o paciente vê as próprias consultas, agenda uma nova (30 minutos, com as mesmas regras da recepção), cancela as suas que ainda não começaram e atualiza telefone, e-mail e endereço. Ele não acessa nenhuma tela da clínica
+- **Usuários** (somente administrador): lista as contas, cria contas de Recepção e exclui contas
+- **Minha conta**: qualquer usuário logado troca a própria senha informando a atual
+- **Esqueceu a senha?** (simulado): na tela de login, o usuário informa o login ou e-mail e vê a confirmação de que um link foi enviado. Como o projeto não tem servidor de e-mail, nada é enviado de verdade
 - **Pacientes**: cadastrar, listar (em páginas de 50), buscar por nome ou CPF, editar e excluir. A busca por nome não diferencia acentos nem maiúsculas ("joao" encontra "João"), e CPF e telefone ganham pontos, traço e parênteses automaticamente durante a digitação
 - **Profissionais**: cadastrar, listar, editar, inativar e excluir (somente administrador)
 - **Especialidades**: cadastrar, listar, editar e excluir (somente administrador)
@@ -29,7 +32,8 @@ Regras de negócio:
 - o CPF deve ter 11 números e não pode se repetir; o telefone deve ter DDD e número (10 ou 11 números)
 - especialidades e registros profissionais não podem se repetir, nem com acentos, maiúsculas ou espaços diferentes ("Clínica Geral" e "CLINICA GERAL" são a mesma especialidade)
 - o login é exato: para entrar, é preciso digitá-lo exatamente como foi cadastrado, e ele só é recusado na criação de conta se já existir um login idêntico ("João" e "joao" são logins diferentes)
-- registros em uso não podem ser excluídos (paciente ou profissional com consultas, especialidade com profissionais)
+- registros em uso não podem ser excluídos (paciente ou profissional com consultas, especialidade com profissionais, paciente com conta de acesso, usuário que registrou consultas)
+- cada CPF tem no máximo uma conta de paciente; o administrador não exclui a própria conta nem outras de administrador
 
 ## Tecnologias
 
@@ -50,10 +54,12 @@ python app.py
 
 Acesse **http://127.0.0.1:5000**. Na primeira execução o banco `clinagenda.db` é criado automaticamente com dois usuários, três especialidades e três profissionais de exemplo. Pacientes e consultas começam vazios.
 
-Usuários de exemplo (o login deve ser digitado em minúsculas, exatamente assim):
+Usuários de exemplo (o login deve ser digitado em minúsculas, exatamente assim). Para testar o perfil Paciente, use **Criar conta** na tela de login:
 
 - **Administrador:** login `admin`, senha `admin123`
 - **Recepção:** login `recepcao`, senha `recepcao123`
+
+Bancos criados por versões anteriores (sem o perfil Paciente) são atualizados automaticamente na primeira execução, sem perder usuários nem consultas.
 
 Para começar com o banco zerado, desligue o sistema (Ctrl + C), apague o arquivo `clinagenda.db` e rode `python app.py` de novo.
 
@@ -65,7 +71,7 @@ Se preferir usar um ambiente virtual (opcional), rode antes da instalação: `py
 python -m pytest
 ```
 
-São 22 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta, a troca de senha, o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
+São 28 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente, a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
 
 ## Segurança
 
@@ -84,6 +90,8 @@ clinagenda/
 ├── schema.sql          # DDL do banco (tabelas, chaves e restrições)
 ├── requirements.txt    # dependências (Flask e Pytest)
 ├── templates/          # telas em Jinja2 (login, cadastro, minha conta e o CRUD de cada entidade)
+│   ├── area/           # área do paciente (minhas consultas, agendar, meus dados)
+│   └── usuarios/       # tela de usuários do administrador
 ├── static/
 │   ├── style.css       # estilos
 │   └── mascaras.js     # máscaras de CPF e telefone
@@ -92,4 +100,4 @@ clinagenda/
 
 ## Banco de dados
 
-Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF).
+Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. A coluna `usuario.paciente_id` liga a conta de um paciente ao cadastro dele (no máximo uma conta por paciente). As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF).

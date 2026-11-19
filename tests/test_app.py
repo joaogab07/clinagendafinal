@@ -516,3 +516,16 @@ def test_migracao_de_banco_antigo(tmp_path):
     c.get("/logout")
     r = c.post("/cadastro", data=conta_paciente(), follow_redirects=True)
     assert "Conta criada" in r.get_data(as_text=True)
+
+
+
+# ---------------------------------------------------- Esqueceu a senha --
+def test_esqueceu_a_senha_simulado(client):
+    assert "Esqueceu a senha?" in client.get("/login").get_data(as_text=True)
+    assert "Enviar link" in client.get("/esqueci-senha").get_data(as_text=True)
+    # a resposta é a mesma, exista ou não o login (não revela quem está cadastrado)
+    for login in ("admin", "ninguem"):
+        r = client.post("/esqueci-senha", data={"login": login})
+        assert "enviamos um link" in r.get_data(as_text=True)
+    # a senha não muda: é só uma simulação
+    assert "Olá, Administrador" in entrar(client).get_data(as_text=True)

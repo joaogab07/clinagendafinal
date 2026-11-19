@@ -224,6 +224,15 @@ def registrar_rotas(app):
                 flash(e, "erro")
         return render_template("cadastro.html")
 
+    @app.route("/esqueci-senha", methods=["GET", "POST"])
+    def esqueci_senha():
+        """Tela SIMULADA de recuperação de senha: o projeto não tem servidor de e-mail, então nada
+        é enviado de verdade. A tela só confirma o pedido, sempre com a mesma mensagem, para não
+        revelar quais logins ou e-mails estão cadastrados."""
+        if g.usuario:
+            return redirect(url_for("inicio"))
+        return render_template("esqueci_senha.html", enviado=request.method == "POST")
+
     @app.route("/cadastro/verificar-login")
     def verificar_login():
         """Usado pela tela de cadastro para avisar, enquanto a pessoa digita,

@@ -92,7 +92,6 @@ clinagenda/
 ├── templates/          # telas em Jinja2 (login, cadastro, minha conta e o CRUD de cada entidade)
 │   ├── area/           # área do paciente (minhas consultas, agendar, meus dados)
 │   └── usuarios/       # tela de usuários do administrador
-├── docs/diagramas/     # diagramas da documentação (casos de uso, DER, atividade, classes e sequência)
 ├── static/
 │   ├── style.css       # estilos
 │   ├── mascaras.js     # máscaras de CPF e telefone
@@ -102,4 +101,4 @@ clinagenda/
 
 ## Banco de dados
 
-Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. A coluna `usuario.paciente_id` liga a conta de um paciente ao cadastro dele (no máximo uma conta por paciente). As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF) e na pasta `docs/diagramas`.
+Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. A coluna `usuario.paciente_id` liga a conta de um paciente ao cadastro dele (no máximo uma conta por paciente). As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF).

@@ -11,7 +11,7 @@
     </select></label>
   <label>Profissional*
     <select name="profissional_id" required><option value="">Selecione...</option>
-      {% for p in profissionais %}<option value="{{ p.id }}" {% if c and c.profissional_id|string == p.id|string %}selected{% endif %}>{{ p.nome }} ({{ p.especialidade }})</option>{% endfor %}
+      {% for p in profissionais %}<option value="{{ p.id }}" {% if c and c.profissional_id|string == p.id|string %}selected{% endif %}>{{ p.nome }} ({{ p.especialidade }}){% if not p.ativo %} — inativo{% endif %}</option>{% endfor %}
     </select></label>
   <div class="linha">
     <label>Data e hora* <input type="datetime-local" name="data_hora" value="{{ c.data_hora if c else '' }}" required></label>

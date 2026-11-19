@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}ClinAgenda{% endblock %} · ClinAgenda</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='mascaras.js') }}" defer></script>
 </head>
 <body>
 {% if g.usuario %}
@@ -17,7 +18,7 @@
     {% if g.usuario.is_admin() %}<a href="{{ url_for('especialidades') }}">Especialidades</a>{% endif %}
   </nav>
   <div class="usuario">{{ g.usuario.nome }} ({{ 'Administrador' if g.usuario.is_admin() else 'Recepção' }})
-    · <a href="{{ url_for('logout') }}">Sair</a></div>
+    · <a href="{{ url_for('conta') }}">Minha conta</a> · <a href="{{ url_for('logout') }}">Sair</a></div>
 </header>
 {% endif %}
 <main>

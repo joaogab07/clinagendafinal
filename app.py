@@ -92,6 +92,12 @@ def registrar_rotas(app):
         a, m, dia = d.split("-")
         return f"{dia}/{m}/{a}" + (f" {h[:5]}" if h else "")
 
+    @app.errorhandler(400)
+    def requisicao_invalida(_e):
+        return render_template("erro.html", codigo=400,
+                               msg="Sua sessão expirou ou o formulário está desatualizado. "
+                                   "Volte, recarregue a página e tente de novo."), 400
+
     @app.errorhandler(403)
     def proibido(_e):
         return render_template("erro.html", codigo=403,
@@ -106,12 +112,13 @@ def registrar_rotas(app):
     def login():
         if request.method == "POST":
             row = get_db().execute("SELECT * FROM usuario WHERE login = ?",
-                                   (form_str("login"),)).fetchone()
+                                   (form_str("login").lower(),)).fetchone()
             if row and check_password_hash(row["senha_hash"], request.form.get("senha", "")):
                 session.clear()
                 session["usuario_id"] = row["id"]
                 proximo = request.args.get("proximo", "")
-                return redirect(proximo if proximo.startswith("/") else url_for("inicio"))
+                seguro = proximo.startswith("/") and not proximo.startswith("//") and "\\" not in proximo
+                return redirect(proximo if seguro else url_for("inicio"))
             flash("Login ou senha incorretos.", "erro")
         return render_template("login.html")
 
@@ -140,6 +147,31 @@ def registrar_rotas(app):
             for e in erros:
                 flash(e, "erro")
         return render_template("cadastro.html")
+
+    @app.route("/conta", methods=["GET", "POST"])
+    @login_required
+    def conta():
+        """Minha conta: o próprio usuário troca a senha informando a atual."""
+        if request.method == "POST":
+            db = get_db()
+            hash_atual = db.execute("SELECT senha_hash FROM usuario WHERE id = ?",
+                                    (g.usuario.id,)).fetchone()[0]
+            nova = request.form.get("nova_senha", "")
+            erros = []
+            if not check_password_hash(hash_atual, request.form.get("senha_atual", "")):
+                erros.append("A senha atual está incorreta.")
+            erros += Usuario.validar_nova_senha(nova, request.form.get("confirmacao", ""))
+            if not erros and check_password_hash(hash_atual, nova):
+                erros.append("A nova senha precisa ser diferente da atual.")
+            if not erros:
+                db.execute("UPDATE usuario SET senha_hash = ? WHERE id = ?",
+                           (generate_password_hash(nova), g.usuario.id))
+                db.commit()
+                flash("Senha alterada com sucesso.", "ok")
+                return redirect(url_for("conta"))
+            for e in erros:
+                flash(e, "erro")
+        return render_template("conta.html")
 
     @app.route("/logout")
     def logout():
@@ -345,9 +377,13 @@ def registrar_rotas(app):
                              or row["profissional_id"] != c.profissional_id)
             erros = c.validar(nova=mudou_horario)
             if not erros and c.status == "agendada":
-                conflito = buscar_conflito(c)
+                conflito = buscar_conflito(c, "profissional_id")
                 if conflito:
                     erros.append(f"O profissional já tem consulta às "
+                                 f"{conflito.inicio:%H:%M} nesse dia (até {conflito.fim:%H:%M}).")
+                conflito = buscar_conflito(c, "paciente_id")
+                if conflito:
+                    erros.append(f"O paciente já tem outra consulta às "
                                  f"{conflito.inicio:%H:%M} nesse dia (até {conflito.fim:%H:%M}).")
             if not erros:
                 dados = (c.paciente_id, c.profissional_id, c.data_hora, c.duracao_min,
@@ -366,9 +402,11 @@ def registrar_rotas(app):
                 flash(e, "erro")
             row = request.form
         pacs = db.execute("SELECT id, nome, cpf FROM paciente ORDER BY nome").fetchall()
-        profs = db.execute("SELECT p.id, p.nome, e.nome AS especialidade FROM profissional p "
+        atual = id and db.execute("SELECT profissional_id FROM consulta WHERE id = ?",
+                                  (id,)).fetchone()[0]
+        profs = db.execute("SELECT p.id, p.nome, p.ativo, e.nome AS especialidade FROM profissional p "
                            "JOIN especialidade e ON e.id = p.especialidade_id "
-                           "WHERE p.ativo = 1 ORDER BY p.nome").fetchall()
+                           "WHERE p.ativo = 1 OR p.id = ? ORDER BY p.nome", (atual or 0,)).fetchall()
         return render_template("consultas/form.html", c=row, id=id,
                                pacientes=pacs, profissionais=profs)
 
@@ -376,9 +414,12 @@ def registrar_rotas(app):
     @login_required
     def consulta_cancelar(id):
         db = get_db()
-        if db.execute("UPDATE consulta SET status = 'cancelada' WHERE id = ?", (id,)).rowcount:
+        if db.execute("UPDATE consulta SET status = 'cancelada' "
+                      "WHERE id = ? AND status = 'agendada'", (id,)).rowcount:
             db.commit()
             flash("Consulta cancelada.", "ok")
+        else:
+            flash("Só é possível cancelar consultas que ainda estão agendadas.", "erro")
         return redirect(url_for("consultas"))
 
     @app.route("/consultas/<int:id>/excluir", methods=["POST"])
@@ -397,12 +438,14 @@ SQL_CONSULTAS = (
 )
 
 
-def buscar_conflito(nova: Consulta):
-    """Procura outra consulta agendada do mesmo profissional no mesmo dia que se sobreponha."""
+def buscar_conflito(nova: Consulta, campo: str):
+    """Procura outra consulta agendada no mesmo dia, do mesmo profissional ou do mesmo
+    paciente (conforme `campo`), cujo horário se sobreponha ao da nova consulta."""
+    assert campo in ("profissional_id", "paciente_id")
     rows = get_db().execute(
-        "SELECT * FROM consulta WHERE profissional_id = ? AND status = 'agendada' "
+        f"SELECT * FROM consulta WHERE {campo} = ? AND status = 'agendada' "
         "AND date(data_hora) = date(?) AND id IS NOT ?",
-        (nova.profissional_id, nova.data_hora, nova.id)).fetchall()
+        (getattr(nova, campo), nova.data_hora, nova.id)).fetchall()
     for r in rows:
         existente = Consulta(r["id"], r["paciente_id"], r["profissional_id"],
                              r["data_hora"], r["duracao_min"], r["status"])

@@ -135,3 +135,73 @@ def test_crud_consulta_com_regras(client):
     assert "Consulta salva" in r.get_data(as_text=True)
     client.post("/consultas/1/excluir")
     assert client.get("/consultas/1/editar").status_code == 404
+
+
+def test_login_nao_diferencia_maiusculas(client):
+    client.post("/cadastro", data={"nome": "Maria Silva", "login": "Maria",
+                                   "senha": "123456", "confirmacao": "123456"})
+    client.get("/logout")
+    assert "Olá, Maria Silva" in entrar(client, "MARIA", "123456").get_data(as_text=True)
+
+
+def test_login_nao_redireciona_para_outro_site(client):
+    r = client.post("/login?proximo=//exemplo.com", data={"login": "admin", "senha": "admin123"})
+    assert r.headers["Location"] == "/"
+
+
+def test_regras_extras_de_consulta(client):
+    entrar(client)
+    novo_paciente(client)
+    base = {"paciente_id": "1", "profissional_id": "1", "duracao_min": "30"}
+    # precisa terminar até as 20h
+    r = client.post("/consultas/nova", follow_redirects=True,
+                    data=dict(base, data_hora=amanha("19:45"), duracao_min="60"))
+    assert "terminar até as 20h" in r.get_data(as_text=True)
+    # mesmo paciente não pode estar em dois atendimentos ao mesmo tempo
+    client.post("/consultas/nova", data=dict(base, data_hora=amanha("10:00")))
+    r = client.post("/consultas/nova", follow_redirects=True,
+                    data=dict(base, profissional_id="2", data_hora=amanha("10:15")))
+    assert "paciente já tem outra consulta" in r.get_data(as_text=True)
+    # profissional inativado continua aparecendo na consulta que já era dele
+    client.post("/profissionais/1/editar", data={"nome": "Dra. Ana Souza", "registro": "CRM-PR 12345",
+                                                 "especialidade_id": "1"})
+    assert "inativo" in client.get("/consultas/1/editar").get_data(as_text=True)
+    assert "inativo" not in client.get("/consultas/nova").get_data(as_text=True)
+    # consulta futura não pode ser marcada como realizada
+    r = client.post("/consultas/1/editar", follow_redirects=True,
+                    data=dict(base, data_hora=amanha("10:00"), status="realizada"))
+    assert "Só é possível marcar como realizada" in r.get_data(as_text=True)
+    # consulta que já aconteceu pode ser marcada como realizada e, depois, não pode ser cancelada
+    ontem = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT10:00")
+    with client.application.app_context():
+        from database import get_db
+        db = get_db()
+        db.execute("UPDATE consulta SET data_hora = ? WHERE id = 1", (ontem,))
+        db.commit()
+    r = client.post("/consultas/1/editar", follow_redirects=True,
+                    data=dict(base, data_hora=ontem, status="realizada"))
+    assert "Consulta salva" in r.get_data(as_text=True)
+    r = client.post("/consultas/1/cancelar", follow_redirects=True)
+    assert "Só é possível cancelar" in r.get_data(as_text=True)
+
+
+def test_nascimento_muito_antigo(client):
+    entrar(client)
+    r = client.post("/pacientes/novo", follow_redirects=True, data={
+        "nome": "Teste", "cpf": "98765432100", "data_nascimento": "1800-01-01",
+        "telefone": "(43) 99999-0000"})
+    assert "anterior a 1900" in r.get_data(as_text=True)
+
+
+def test_alterar_senha(client):
+    entrar(client)
+    def trocar(atual, nova, conf):
+        return client.post("/conta", follow_redirects=True, data={
+            "senha_atual": atual, "nova_senha": nova, "confirmacao": conf}).get_data(as_text=True)
+    assert "senha atual está incorreta" in trocar("errada", "nova123", "nova123")
+    assert "não conferem" in trocar("admin123", "nova123", "outra12")
+    assert "diferente da atual" in trocar("admin123", "admin123", "admin123")
+    assert "Senha alterada" in trocar("admin123", "nova123", "nova123")
+    client.get("/logout")
+    assert "incorretos" in entrar(client, "admin", "admin123").get_data(as_text=True)
+    assert "Olá, Administrador" in entrar(client, "admin", "nova123").get_data(as_text=True)

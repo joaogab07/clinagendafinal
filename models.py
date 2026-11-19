@@ -35,6 +35,15 @@ class Usuario:
         return self.perfil == "admin"
 
     @staticmethod
+    def validar_nova_senha(senha: str, confirmacao: str) -> list:
+        erros = []
+        if len(senha) < 6:
+            erros.append("A senha deve ter pelo menos 6 caracteres.")
+        if senha != confirmacao:
+            erros.append("As senhas não conferem.")
+        return erros
+
+    @staticmethod
     def validar_cadastro(nome: str, login: str, senha: str, confirmacao: str) -> list:
         """Regras para criar uma conta nova pela tela de cadastro."""
         erros = []
@@ -42,11 +51,7 @@ class Usuario:
             erros.append("Informe seu nome completo.")
         if not re.fullmatch(r"[a-zA-Z0-9._]{3,30}", login):
             erros.append("O login deve ter de 3 a 30 caracteres, usando letras, números, ponto ou _.")
-        if len(senha) < 6:
-            erros.append("A senha deve ter pelo menos 6 caracteres.")
-        if senha != confirmacao:
-            erros.append("As senhas não conferem.")
-        return erros
+        return erros + Usuario.validar_nova_senha(senha, confirmacao)
 
 
 @dataclass
@@ -102,6 +107,8 @@ class Paciente:
             nasc = date.fromisoformat(self.data_nascimento)
             if nasc > date.today():
                 erros.append("A data de nascimento não pode estar no futuro.")
+            elif nasc.year < 1900:
+                erros.append("Confira a data de nascimento (ano anterior a 1900).")
         except ValueError:
             erros.append("Data de nascimento inválida.")
         if len(somente_digitos(self.telefone)) < 10:
@@ -146,10 +153,20 @@ class Consulta:
                 erros.append("Não é possível agendar no passado.")
             if not 7 <= inicio.hour < 20:
                 erros.append("A clínica atende das 07h às 20h.")
+            elif 10 <= int(self.duracao_min) <= 240 and self.fim > inicio.replace(hour=20, minute=0):
+                erros.append("A consulta precisa terminar até as 20h. Diminua a duração ou "
+                             "escolha um horário mais cedo.")
         except ValueError:
             erros.append("Data e hora inválidas.")
         if not 10 <= int(self.duracao_min) <= 240:
             erros.append("A duração deve ficar entre 10 e 240 minutos.")
         if self.status not in STATUS_CONSULTA:
             erros.append("Status inválido.")
+        elif self.status == "realizada":
+            try:
+                if self.inicio > datetime.now():
+                    erros.append("Só é possível marcar como realizada uma consulta cujo horário "
+                                 "já começou.")
+            except ValueError:
+                pass
         return erros

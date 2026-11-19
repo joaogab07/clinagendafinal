@@ -6,11 +6,11 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label>Nome completo* <input name="nome" value="{{ p.nome if p else '' }}" required></label>
   <div class="linha">
-    <label>CPF* <input name="cpf" value="{{ formatar_cpf(p.cpf) if p else '' }}" placeholder="000.000.000-00" required></label>
+    <label>CPF* <input name="cpf" data-mascara="cpf" inputmode="numeric" value="{{ formatar_cpf(p.cpf) if p else '' }}" placeholder="000.000.000-00" required></label>
     <label>Data de nascimento* <input type="date" name="data_nascimento" value="{{ p.data_nascimento if p else '' }}" required></label>
   </div>
   <div class="linha">
-    <label>Telefone* <input name="telefone" value="{{ p.telefone if p else '' }}" placeholder="(43) 99999-0000" required></label>
+    <label>Telefone* <input name="telefone" data-mascara="telefone" inputmode="tel" value="{{ p.telefone if p else '' }}" placeholder="(43) 99999-0000" required></label>
     <label>E-mail <input type="email" name="email" value="{{ p.email if p else '' }}"></label>
   </div>
   <label>Endereço <input name="endereco" value="{{ p.endereco if p else '' }}"></label>

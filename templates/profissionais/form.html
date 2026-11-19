@@ -16,7 +16,7 @@
       </select></label>
   </div>
   <div class="linha">
-    <label>Telefone <input name="telefone" value="{{ p.telefone if p else '' }}"></label>
+    <label>Telefone <input name="telefone" data-mascara="telefone" inputmode="tel" placeholder="(43) 99999-0000" value="{{ p.telefone if p else '' }}"></label>
     <label>E-mail <input type="email" name="email" value="{{ p.email if p else '' }}"></label>
   </div>
   <label class="check"><input type="checkbox" name="ativo" value="1" {% if not p or p.ativo|string in ('1', 'True') %}checked{% endif %}> Profissional ativo (aparece no agendamento)</label>

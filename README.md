@@ -13,10 +13,19 @@ O ClinAgenda é uma aplicação web para a recepção de uma clínica organizar 
 Funcionalidades (CRUD completo):
 
 - **Autenticação** com dois perfis: Administrador e Recepção
-- **Pacientes**: cadastrar, listar/buscar por nome ou CPF, editar e excluir (com validação de CPF)
+- **Criar conta**: qualquer pessoa pode se cadastrar pela tela de login (entra com o perfil Recepção)
+- **Minha conta**: o usuário logado troca a própria senha informando a atual
+- **Pacientes**: cadastrar, listar/buscar por nome ou CPF, editar e excluir (CPF e telefone com máscara automática)
 - **Profissionais**: cadastrar, listar, editar, inativar e excluir (somente administrador)
 - **Especialidades**: cadastrar, listar, editar e excluir (somente administrador)
-- **Consultas**: agendar, listar com filtros (data, profissional, status), editar, cancelar e excluir, com verificação de conflito de horário
+- **Consultas**: agendar, listar com filtros (data, profissional, status), editar, cancelar e excluir
+
+Regras de negócio:
+
+- um profissional, ou um paciente, não pode ter duas consultas no mesmo horário
+- a consulta precisa começar e terminar dentro do expediente (07h às 20h)
+- não é possível agendar no passado nem marcar como realizada uma consulta que ainda não aconteceu
+- registros em uso não podem ser excluídos (paciente com consultas, especialidade com profissionais)
 
 ## Tecnologias
 

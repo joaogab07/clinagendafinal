@@ -13,7 +13,7 @@
   {% for p in pacientes %}
     <tr><td>{{ p.nome }}</td><td>{{ formatar_cpf(p.cpf) }}</td><td>{{ p.data_nascimento|dt }}</td><td>{{ p.telefone }}</td>
       <td class="acoes"><a href="{{ url_for('paciente_form', id=p.id) }}">Editar</a>
-        <form method="post" action="{{ url_for('paciente_excluir', id=p.id) }}" onsubmit="return confirm('Excluir {{ p.nome }}?')">
+        <form method="post" action="{{ url_for('paciente_excluir', id=p.id) }}" onsubmit='return confirm({{ ("Excluir " ~ p.nome ~ "?")|tojson }})'>
           <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link perigo">Excluir</button></form></td></tr>
   {% else %}
     <tr><td colspan="5" class="vazio">Nenhum paciente cadastrado.</td></tr>

@@ -7,8 +7,14 @@
     return d[2] + "/" + d[1] + "/" + d[0] + (p[1] ? " às " + p[1] : "");
   }
 
+  function ehData(campo) { return campo.type === "date" || campo.type === "datetime-local"; }
+
+  // Alguns navegadores deixam digitar ano com 5 ou 6 dígitos (ex.: 131231) mesmo com max no campo
+  function anoGrande(campo) { return ehData(campo) && /^\d{5,}-/.test(campo.value); }
+
   function mensagem(campo) {
-    var v = campo.validity, data = campo.type === "date" || campo.type === "datetime-local";
+    var v = campo.validity, data = ehData(campo);
+    if (anoGrande(campo)) return "Digite o ano com 4 dígitos (ex.: 2026).";
     if (v.valueMissing) return campo.tagName === "SELECT" ? "Selecione uma opção." : "Preencha este campo.";
     if (v.badInput) return data ? "Data incompleta ou inválida." : "Valor inválido.";
     if (v.rangeUnderflow) return data ? "Escolha uma data a partir de " + dataBR(campo.min) + "."
@@ -29,10 +35,14 @@
     if (!campo.validity.valid) campo.setCustomValidity(mensagem(campo));
   }, true);
 
-  // ao corrigir o campo, limpa a mensagem para o navegador conferir de novo
+  // ao corrigir o campo, limpa a mensagem para o navegador conferir de novo;
+  // ano com mais de 4 dígitos já fica marcado como erro e o aviso aparece na hora
   ["input", "change"].forEach(function (tipo) {
     document.addEventListener(tipo, function (ev) {
-      if (ev.target.setCustomValidity) ev.target.setCustomValidity("");
+      var campo = ev.target;
+      if (!campo.setCustomValidity) return;
+      campo.setCustomValidity(anoGrande(campo) ? mensagem(campo) : "");
+      if (tipo === "change" && anoGrande(campo)) campo.reportValidity();
     }, true);
   });
 })();

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block titulo %}{{ 'Editar' if id else 'Agendar' }} consulta{% endblock %}
+{% block largura %}estreito{% endblock %}
 {% block conteudo %}
 <h1>{{ 'Editar' if id else 'Agendar' }} consulta</h1>
 {% if not pacientes %}<div class="aviso erro">✖ Cadastre um paciente antes de agendar. <a href="{{ url_for('paciente_form') }}">Cadastrar paciente</a></div>{% endif %}

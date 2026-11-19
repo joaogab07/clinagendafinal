@@ -10,6 +10,7 @@
 <body>
 {% if g.usuario %}
 <header class="topo">
+ <div class="topo-interno">
   <a class="marca" href="{{ url_for('inicio') }}">ClinAgenda</a>
   <nav>
     <a href="{{ url_for('consultas') }}">Consultas</a>
@@ -19,9 +20,10 @@
   </nav>
   <div class="usuario">{{ g.usuario.nome }} ({{ 'Administrador' if g.usuario.is_admin() else 'Recepção' }})
     · <a href="{{ url_for('conta') }}">Minha conta</a> · <a href="{{ url_for('logout') }}">Sair</a></div>
+ </div>
 </header>
 {% endif %}
-<main>
+<main class="{% block largura %}{% endblock %}">
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in msgs %}
       <div class="aviso {{ cat }}">{{ '✔' if cat == 'ok' else '✖' }} {{ msg }}</div>

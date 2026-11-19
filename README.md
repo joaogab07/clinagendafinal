@@ -8,70 +8,88 @@ Projeto da disciplina **Projeto de Desenvolvimento de Software I e II** — UniF
 
 ## Sobre o sistema
 
-O ClinAgenda é uma aplicação web para a recepção de uma clínica organizar pacientes, profissionais, especialidades e a agenda de consultas. O sistema impede que um profissional receba duas consultas no mesmo horário, não deixa agendar no passado e protege registros que ainda estão em uso (por exemplo, um paciente que já tem consultas não pode ser excluído).
+O ClinAgenda é uma aplicação web para a recepção de uma clínica organizar pacientes, profissionais, especialidades e a agenda de consultas. O sistema impede que um profissional ou um paciente tenha duas consultas no mesmo horário, não deixa agendar no passado nem fora do expediente e protege registros que ainda estão em uso (por exemplo, um paciente que já tem consultas não pode ser excluído).
 
 Funcionalidades (CRUD completo):
 
 - **Autenticação** com dois perfis: Administrador e Recepção
-- **Criar conta**: qualquer pessoa pode se cadastrar pela tela de login (entra com o perfil Recepção)
+- **Criar conta**: qualquer pessoa pode se cadastrar pela tela de login e entra com o perfil Recepção. O sistema avisa, enquanto a pessoa digita, se o login já pertence a outro usuário
 - **Minha conta**: o usuário logado troca a própria senha informando a atual
-- **Pacientes**: cadastrar, listar/buscar por nome ou CPF, editar e excluir (CPF e telefone com máscara automática)
+- **Pacientes**: cadastrar, listar, buscar por nome ou CPF, editar e excluir. A busca por nome não diferencia acentos nem maiúsculas ("joao" encontra "João"), e CPF e telefone ganham pontos, traço e parênteses automaticamente durante a digitação
 - **Profissionais**: cadastrar, listar, editar, inativar e excluir (somente administrador)
 - **Especialidades**: cadastrar, listar, editar e excluir (somente administrador)
-- **Consultas**: agendar, listar com filtros (data, profissional, status), editar, cancelar e excluir
+- **Consultas**: agendar, listar com filtros (data, profissional, status), editar, cancelar, excluir (somente administrador) e **marcar como realizada** com um clique quando o horário da consulta já chegou
 
 Regras de negócio:
 
-- um profissional, ou um paciente, não pode ter duas consultas no mesmo horário
-- a consulta precisa começar e terminar dentro do expediente (07h às 20h)
-- não é possível agendar no passado nem marcar como realizada uma consulta que ainda não aconteceu
-- registros em uso não podem ser excluídos (paciente com consultas, especialidade com profissionais)
+- um profissional, ou um paciente, não pode ter duas consultas agendadas no mesmo horário; consultas canceladas liberam o horário
+- a consulta precisa começar e terminar dentro do expediente (07h às 20h) e durar de 10 a 240 minutos
+- não é possível agendar no passado nem marcar como realizada uma consulta que ainda não começou; só consultas agendadas podem ser canceladas
+- profissionais inativos não recebem novas consultas, mas continuam aparecendo nas consultas que já eram deles
+- o CPF deve ter 11 números e não pode se repetir; o telefone deve ter DDD e número (10 ou 11 números)
+- especialidades e registros profissionais não podem se repetir, nem com acentos, maiúsculas ou espaços diferentes ("Clínica Geral" e "CLINICA GERAL" são a mesma especialidade)
+- o login é exato: para entrar, é preciso digitá-lo exatamente como foi cadastrado, e ele só é recusado na criação de conta se já existir um login idêntico ("João" e "joao" são logins diferentes)
+- registros em uso não podem ser excluídos (paciente ou profissional com consultas, especialidade com profissionais)
 
 ## Tecnologias
 
-- Python 3.10+
+- Python 3.10 ou mais novo
 - Flask 3 (rotas, templates Jinja2, sessões)
 - SQLite (banco relacional, acessado com o módulo `sqlite3` e SQL puro)
-- HTML5 + CSS3
+- HTML5, CSS3 e um pouco de JavaScript (máscaras e aviso de login)
 - Pytest (testes automatizados)
 
 ## Como executar
 
 ```bash
-git clone https://github.com/SEU-USUARIO/clinagenda.git
+git clone https://github.com/joaogab07/clinagenda.git
 cd clinagenda
-python -m venv .venv
-# Windows: .venv\Scripts\activate    |   Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python app.py
 ```
 
-Acesse **http://127.0.0.1:5000**. Na primeira execução o banco `clinagenda.db` é criado automaticamente com usuários e dados de exemplo:
+Acesse **http://127.0.0.1:5000**. Na primeira execução o banco `clinagenda.db` é criado automaticamente com dois usuários, três especialidades e três profissionais de exemplo. Pacientes e consultas começam vazios.
 
-| Perfil        | Login      | Senha         |
-|---------------|------------|---------------|
-| Administrador | `admin`    | `admin123`    |
-| Recepção      | `recepcao` | `recepcao123` |
+Usuários de exemplo (o login deve ser digitado em minúsculas, exatamente assim):
 
-Para rodar os testes:
+- **Administrador:** login `admin`, senha `admin123`
+- **Recepção:** login `recepcao`, senha `recepcao123`
+
+Para começar com o banco zerado, desligue o sistema (Ctrl + C), apague o arquivo `clinagenda.db` e rode `python app.py` de novo.
+
+Se preferir usar um ambiente virtual (opcional), rode antes da instalação: `python -m venv .venv` e ative com `.venv\Scripts\Activate.ps1` no Windows (PowerShell) ou `source .venv/bin/activate` no Linux/macOS.
+
+## Testes
 
 ```bash
 python -m pytest
 ```
 
+São 21 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta, a troca de senha, o controle de acesso por perfil, as regras de negócio acima e a segurança da sessão.
+
+## Segurança
+
+- as senhas são guardadas apenas como hash (`generate_password_hash` do Werkzeug), nunca em texto puro
+- todas as consultas SQL usam parâmetros, o que evita injeção de SQL
+- os formulários são protegidos por token CSRF
+- a chave que assina o cookie de login é gerada aleatoriamente na primeira execução e fica no arquivo `.secret_key`, que não vai para o GitHub (está no `.gitignore`). Também pode ser definida pela variável de ambiente `SECRET_KEY`
+
 ## Estrutura
 
 ```
 clinagenda/
-├── app.py            # rotas Flask (controladores) e regras de acesso
-├── models.py         # entidades (Paciente, Profissional, Especialidade, Consulta, Usuario) e validações
-├── database.py       # conexão SQLite, criação do esquema e dados iniciais
-├── schema.sql        # DDL do banco (tabelas, chaves e restrições)
-├── templates/        # telas em Jinja2
-├── static/style.css  # estilos
-└── tests/            # testes automatizados
+├── app.py              # rotas Flask (controladores) e regras de acesso
+├── models.py           # entidades (Paciente, Profissional, Especialidade, Consulta, Usuario) e validações
+├── database.py         # conexão SQLite, criação do esquema e dados iniciais
+├── schema.sql          # DDL do banco (tabelas, chaves e restrições)
+├── requirements.txt    # dependências (Flask e Pytest)
+├── templates/          # telas em Jinja2 (login, cadastro, minha conta e o CRUD de cada entidade)
+├── static/
+│   ├── style.css       # estilos
+│   └── mascaras.js     # máscaras de CPF e telefone
+└── tests/              # testes automatizados
 ```
 
 ## Banco de dados
 
-Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento está na documentação (PDF).
+Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF).

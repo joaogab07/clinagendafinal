@@ -7,7 +7,7 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label>Nome completo <input name="nome" value="{{ request.form.nome or '' }}" required autofocus></label>
   <label>Login <input name="login" id="campo-login" value="{{ request.form.login or '' }}" placeholder="ex.: maria.silva"
-                      autocomplete="username" aria-describedby="aviso-login" required>
+                      autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" aria-describedby="aviso-login" required>
     <span id="aviso-login" class="dica" aria-live="polite"></span></label>
   <label>Senha <input name="senha" type="password" minlength="6" required></label>
   <label>Confirmar senha <input name="confirmacao" type="password" minlength="6" required></label>

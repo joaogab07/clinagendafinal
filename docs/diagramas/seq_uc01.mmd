@@ -1,0 +1,19 @@
+sequenceDiagram
+    actor U as Usuário
+    participant T as Tela de Login
+    participant C as Controlador (app.py)
+    participant DB as Banco SQLite
+    U->>T: informa login e senha
+    T->>C: POST /login (login, senha, csrf)
+    C->>DB: SELECT * FROM usuario WHERE login = ?
+    DB-->>C: registro do usuário (ou vazio)
+    C->>C: check_password_hash(senha_hash, senha)
+    alt credenciais válidas
+        C->>C: session["usuario_id"] = id
+        C-->>T: redireciona para a página inicial
+        T-->>U: exibe agenda do dia
+    else login ou senha incorretos
+        C-->>T: mensagem "Login ou senha incorretos"
+        T-->>U: exibe erro na tela de login
+    end
+    Note over U,DB: Criar conta (paciente): POST /cadastro → valida dados e CPF. Se o CPF já existe, a data de nascimento<br/>precisa conferir e a conta é ligada ao cadastro existente, senão o paciente é criado junto com a conta<br/>Esqueceu a senha (simulado): POST /esqueci-senha → mostra a confirmação de envio do link, sem enviar e-mail de verdade

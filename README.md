@@ -8,7 +8,7 @@ Projeto da disciplina **Projeto de Desenvolvimento de Software I e II** — UniF
 
 ## Sobre o sistema
 
-O ClinAgenda é uma aplicação web para a recepção de uma clínica organizar pacientes, profissionais, especialidades e a agenda de consultas. O sistema impede que um profissional ou um paciente tenha duas consultas no mesmo horário, não deixa agendar no passado nem fora do expediente e protege registros que ainda estão em uso (por exemplo, um paciente que já tem consultas não pode ser excluído).
+O ClinAgenda é uma aplicação web para a recepção de uma clínica organizar pacientes, profissionais, especialidades e a agenda de consultas. Na hora de agendar, tanto a recepção quanto o paciente veem a grade de horários do profissional no dia escolhido, com os horários livres para clicar e os ocupados riscados. O sistema impede que um profissional ou um paciente tenha duas consultas no mesmo horário, não deixa agendar no passado nem fora do expediente e protege registros que ainda estão em uso (por exemplo, um paciente que já tem consultas não pode ser excluído).
 
 Funcionalidades (CRUD completo):
 
@@ -40,7 +40,7 @@ Regras de negócio:
 - Python 3.10 ou mais novo
 - Flask 3 (rotas, templates Jinja2, sessões)
 - SQLite (banco relacional, acessado com o módulo `sqlite3` e SQL puro)
-- HTML5, CSS3 e um pouco de JavaScript (máscaras e aviso de login)
+- HTML5, CSS3 e um pouco de JavaScript (máscaras de CPF e telefone, aviso de login, atualização automática da grade de horários e avisos dos campos em português)
 - Pytest (testes automatizados)
 
 ## Como executar
@@ -71,7 +71,7 @@ Se preferir usar um ambiente virtual (opcional), rode antes da instalação: `py
 python -m pytest
 ```
 
-São 30 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente e a grade de horários livres, a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, a paginação e a segurança da sessão.
+São 31 testes automatizados que cobrem o CRUD de todas as entidades, a criação de conta do paciente e a ligação pelo CPF, a área do paciente, a grade de horários livres da recepção e do paciente (inclusive ao reagendar uma consulta cancelada), a tela de usuários, a atualização de bancos antigos, a troca de senha, a tela de "Esqueceu a senha", o controle de acesso por perfil, as regras de negócio acima, os limites de data e hora, a paginação e a segurança da sessão.
 
 ## Segurança
 
@@ -92,6 +92,7 @@ clinagenda/
 ├── templates/          # telas em Jinja2 (login, cadastro, minha conta e o CRUD de cada entidade)
 │   ├── area/           # área do paciente (minhas consultas, agendar, meus dados)
 │   └── usuarios/       # tela de usuários do administrador
+├── docs/diagramas/     # diagramas da documentação (casos de uso, DER, atividade, classes e sequência)
 ├── static/
 │   ├── style.css       # estilos
 │   ├── mascaras.js     # máscaras de CPF e telefone
@@ -101,4 +102,4 @@ clinagenda/
 
 ## Banco de dados
 
-Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. A coluna `usuario.paciente_id` liga a conta de um paciente ao cadastro dele (no máximo uma conta por paciente). As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF).
+Cinco tabelas relacionadas: `usuario`, `especialidade`, `profissional`, `paciente` e `consulta`. A coluna `usuario.paciente_id` liga a conta de um paciente ao cadastro dele (no máximo uma conta por paciente). As chaves estrangeiras usam `ON DELETE RESTRICT`, de modo que o banco recusa excluir uma especialidade com profissionais ou um paciente com consultas. O diagrama entidade-relacionamento e os demais diagramas estão na documentação (PDF) e na pasta `docs/diagramas`.

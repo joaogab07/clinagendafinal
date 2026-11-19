@@ -537,7 +537,8 @@ def registrar_rotas(app):
             horarios, aviso = horarios_do_dia(
                 int(v["profissional_id"]), v["data"],
                 int(v["paciente_id"]) if v["paciente_id"].isdigit() else None,
-                duracao=dur, passo=PASSO_RECEPCAO, consulta_atual=banco, do_paciente=False)
+                duracao=dur, passo=PASSO_RECEPCAO, consulta_atual=banco, do_paciente=False,
+                checar_atual=bool(banco) and banco["status"] != "agendada" and v["status"] == "agendada")
         return render_template("consultas/form.html", v=v, id=id, pacientes=pacs,
                                profissionais=profs, horarios=horarios, aviso=aviso,
                                limite=(date.today() + timedelta(days=LIMITE_DIAS)).isoformat())
@@ -775,14 +776,16 @@ DURACAO_PACIENTE = 30   # consultas marcadas pelo próprio paciente duram 30 min
 
 
 def horarios_do_dia(profissional_id: int, dia: str, paciente_id, duracao: int = None,
-                    passo: int = None, consulta_atual=None, do_paciente: bool = True):
+                    passo: int = None, consulta_atual=None, do_paciente: bool = True,
+                    checar_atual: bool = False):
     """Monta a grade do dia, das 07:00 até o último horário em que a consulta ainda termina
     às 20:00. O paciente vê de 30 em 30 minutos (consultas de 30 min); a recepção vê de 15 em 15
     com a duração que escolheu. Cada horário vem como {"hora", "valor", "livre", "motivo"}: fica
     ocupado se já passou, se o profissional tem consulta agendada que se sobrepõe (inclusive
     consultas mais longas) ou se o paciente já tem consulta nesse horário.
     Na edição, `consulta_atual` (linha do banco) é ignorada nos conflitos e o horário dela
-    continua disponível, mesmo que já tenha passado."""
+    continua disponível, mesmo que já tenha passado. Com `checar_atual` (consulta cancelada que
+    está voltando a ser agendada), esse horário também é conferido contra as outras consultas."""
     duracao = duracao or DURACAO_PACIENTE
     passo = passo or DURACAO_PACIENTE
     try:
@@ -820,9 +823,9 @@ def horarios_do_dia(profissional_id: int, dia: str, paciente_id, duracao: int = 
         valor = inicio.strftime("%Y-%m-%dT%H:%M")
         teste = Consulta(None, paciente_id, profissional_id, valor, duracao)
         motivo = ""
-        if valor == atual_valor:
-            pass
-        elif inicio <= agora:
+        if valor == atual_valor and not checar_atual:
+            pass                     # horário que a consulta já tem: continua disponível
+        elif inicio <= agora and (valor != atual_valor or checar_atual):
             motivo = "Já passou"
         elif teste.fim > fim_expediente:
             motivo = "Passa das 20h"

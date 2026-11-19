@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor A as Administrador
+    participant T as Tela de Profissionais
+    participant C as Controlador (app.py)
+    participant P as Profissional (models.py)
+    participant DB as Banco SQLite
+    A->>T: abre "Novo profissional"
+    T->>C: GET /profissionais/novo
+    C->>C: admin_required (verifica perfil)
+    C->>DB: SELECT * FROM especialidade
+    DB-->>C: especialidades
+    C-->>T: formulário com especialidades
+    A->>T: preenche nome, registro, especialidade e salva
+    T->>C: POST /profissionais/novo
+    C->>P: Profissional(...).validar()
+    P-->>C: lista de erros
+    C->>DB: SELECT especialidade escolhida existe?
+    C->>DB: SELECT registro igual (ignorando maiúsculas, acentos e espaços)?
+    DB-->>C: resultados
+    alt válido, especialidade existe e registro livre
+        C->>DB: INSERT INTO profissional ...
+        DB-->>C: OK
+        C-->>T: lista com "Profissional salvo"
+    else inválido, especialidade inexistente ou registro já usado
+        C-->>T: exibe mensagens de erro
+    end
+    T-->>A: mostra resultado
+    Note over A,DB: Se um usuário de perfil Recepção tentar acessar, o controlador responde 403

@@ -1,0 +1,34 @@
+sequenceDiagram
+    actor A as Administrador
+    participant T as Tela de Usuários
+    participant C as Controlador (app.py)
+    participant U as Usuario (models.py)
+    participant DB as Banco SQLite
+    A->>T: clica em "Nova conta de Recepção" e preenche nome, login e senha
+    T->>C: POST /usuarios/novo
+    C->>C: admin_required (verifica perfil)
+    C->>U: validar_cadastro(nome, login, senha, confirmação)
+    U-->>C: lista de erros
+    C->>DB: SELECT login idêntico já existe?
+    DB-->>C: resultado
+    alt válido e login livre
+        C->>DB: INSERT INTO usuario (..., perfil = 'recepcao', senha_hash)
+        C-->>T: "Conta de Recepção criada"
+    else inválido ou login em uso
+        C-->>T: mensagem de erro
+    end
+    A->>T: clica em "Excluir conta"
+    T->>C: POST /usuarios/{id}/excluir
+    alt própria conta ou conta de administrador
+        C-->>T: exclusão recusada
+    else outras contas
+        C->>DB: DELETE FROM usuario WHERE id = ?
+        alt usuário não registrou consultas
+            DB-->>C: OK
+            C-->>T: "Registro excluído"
+        else registrou consultas (FOREIGN KEY RESTRICT)
+            DB-->>C: IntegrityError
+            C-->>T: "Este usuário registrou consultas"
+        end
+    end
+    T-->>A: lista atualizada

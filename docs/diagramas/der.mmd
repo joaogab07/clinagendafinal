@@ -1,0 +1,48 @@
+erDiagram
+    USUARIO ||--o{ CONSULTA : registra
+    PACIENTE ||--o{ CONSULTA : "é atendido em"
+    PROFISSIONAL ||--o{ CONSULTA : realiza
+    ESPECIALIDADE ||--o{ PROFISSIONAL : classifica
+    PACIENTE |o--o| USUARIO : "tem conta"
+    USUARIO {
+        INTEGER id PK
+        TEXT nome
+        TEXT login UK
+        TEXT senha_hash
+        TEXT perfil "admin | recepcao | paciente"
+        INTEGER paciente_id FK,UK "só no perfil paciente"
+    }
+    ESPECIALIDADE {
+        INTEGER id PK
+        TEXT nome UK
+        TEXT descricao
+    }
+    PROFISSIONAL {
+        INTEGER id PK
+        TEXT nome
+        TEXT registro UK
+        TEXT telefone
+        TEXT email
+        INTEGER ativo
+        INTEGER especialidade_id FK
+    }
+    PACIENTE {
+        INTEGER id PK
+        TEXT nome
+        TEXT cpf UK
+        TEXT data_nascimento
+        TEXT telefone
+        TEXT email
+        TEXT endereco
+    }
+    CONSULTA {
+        INTEGER id PK
+        INTEGER paciente_id FK
+        INTEGER profissional_id FK
+        INTEGER usuario_id FK
+        TEXT data_hora
+        INTEGER duracao_min
+        TEXT status "agendada | realizada | cancelada"
+        TEXT observacoes
+        TEXT criado_em
+    }

@@ -612,3 +612,21 @@ def get_db_count(client):
     from app import get_db
     with client.application.app_context():
         return get_db().execute("SELECT COUNT(*) FROM consulta").fetchone()[0]
+
+
+def test_grade_ao_reagendar_consulta_cancelada(client):
+    entrar(client)
+    novo_paciente(client)
+    novo_paciente(client, cpf="111.444.777-35")
+    dia = amanha("x")[:10]
+    base = {"profissional_id": "1", "data": dia, "hora": "10:00", "duracao_min": "30", "observacoes": ""}
+    client.post("/consultas/nova", data=dict(base, paciente_id="1"))
+    client.post("/consultas/1/cancelar")
+    client.post("/consultas/nova", data=dict(base, paciente_id="2"))   # outro paciente pega o horário
+    # editando a cancelada sem mudar o status, o horário dela continua aparecendo como atual
+    html = client.get("/consultas/1/editar").get_data(as_text=True)
+    assert 'value="10:00" checked' in html
+    # ao voltar para "agendada", a grade mostra que o horário já foi ocupado
+    html = client.get(f"/consultas/1/editar?paciente_id=1&profissional_id=1&data={dia}"
+                      "&duracao_min=30&status=agendada").get_data(as_text=True)
+    assert "<s>10:00</s>" in html and 'value="10:30"' in html

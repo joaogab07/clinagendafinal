@@ -1,0 +1,25 @@
+sequenceDiagram
+    actor R as Recepcionista
+    participant T as Tela de Pacientes
+    participant C as Controlador (app.py)
+    participant P as Paciente (models.py)
+    participant DB as Banco SQLite
+    R->>T: preenche dados e clica em Salvar
+    T->>C: POST /pacientes/novo (ou /pacientes/{id}/editar)
+    C->>P: Paciente(nome, cpf, nascimento, telefone...)
+    C->>P: validar()
+    P-->>C: lista de erros
+    alt dados válidos
+        C->>DB: INSERT INTO paciente ... (ou UPDATE)
+        alt CPF ainda não cadastrado
+            DB-->>C: OK
+            C-->>T: redireciona para a lista com "Paciente salvo"
+        else CPF duplicado (UNIQUE)
+            DB-->>C: IntegrityError
+            C-->>T: "Já existe um paciente com este CPF"
+        end
+    else dados inválidos
+        C-->>T: exibe erros (ex.: "O CPF deve ter 11 números")
+    end
+    T-->>R: mostra resultado
+    Note over R,DB: Listar: GET /pacientes?q= · Excluir: POST /pacientes/{id}/excluir<br/>(bloqueado pelo banco se o paciente tiver consultas)

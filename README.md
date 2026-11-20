@@ -82,22 +82,9 @@ São 31 testes automatizados que cobrem o CRUD de todas as entidades, a criaçã
 
 ## Estrutura
 
-```
-clinagenda/
-├── app.py              # rotas Flask (controladores) e regras de acesso
-├── models.py           # entidades (Paciente, Profissional, Especialidade, Consulta, Usuario) e validações
-├── database.py         # conexão SQLite, criação do esquema e dados iniciais
-├── schema.sql          # DDL do banco (tabelas, chaves e restrições)
-├── requirements.txt    # dependências (Flask e Pytest)
-├── templates/          # telas em Jinja2 (login, cadastro, minha conta e o CRUD de cada entidade)
-│   ├── area/           # área do paciente (minhas consultas, agendar, meus dados)
-│   └── usuarios/       # tela de usuários do administrador
-├── static/
-│   ├── style.css       # estilos
-│   ├── mascaras.js     # máscaras de CPF e telefone
-│   └── validacao.js    # avisos dos campos em português
-└── tests/              # testes automatizados
-```
+O arquivo app.py tem as rotas do sistema e controla o que cada perfil pode acessar. O models.py guarda as entidades (paciente, profissional, especialidade, consulta e usuário) e as validações de cada uma. O database.py faz a conexão com o SQLite e cria o banco com os dados iniciais, e o schema.sql tem a criação das tabelas. As dependências do projeto estão no requirements.txt.
+
+As telas ficam na pasta templates. Dentro dela, a pasta area tem as telas do paciente e a pasta usuarios tem a tela de usuários do administrador. A pasta static guarda o CSS e os arquivos JavaScript das máscaras de CPF e telefone e dos avisos dos campos. Os testes automatizados ficam na pasta tests.
 
 ## Banco de dados
 

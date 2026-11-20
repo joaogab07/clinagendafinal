@@ -1,4 +1,3 @@
-"""Testes automatizados do CRUD e das regras de negócio.  Executar:  python -m pytest"""
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path

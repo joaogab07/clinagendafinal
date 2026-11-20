@@ -1,5 +1,3 @@
-// Máscaras de digitação: formatam CPF e telefone enquanto a pessoa digita.
-// Uso no HTML:  <input data-mascara="cpf">  ou  <input data-mascara="telefone">
 (function () {
   function cpf(d) {
     d = d.slice(0, 11);

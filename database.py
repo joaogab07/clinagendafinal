@@ -1,4 +1,3 @@
-"""Acesso ao banco SQLite: conexão por requisição, criação do esquema e dados iniciais."""
 import sqlite3
 from pathlib import Path
 

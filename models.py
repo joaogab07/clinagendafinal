@@ -1,4 +1,3 @@
-"""Entidades do sistema (espelham o Diagrama de Classes) e suas regras de validação."""
 import re
 import unicodedata
 from dataclasses import dataclass, field

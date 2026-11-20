@@ -1,4 +1,3 @@
--- ClinAgenda - esquema do banco de dados (SQLite)
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS usuario (

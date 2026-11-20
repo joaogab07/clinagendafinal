@@ -1,7 +1,3 @@
-"""ClinAgenda - sistema de agendamento de consultas para clínicas.
-
-Executar:  python app.py   (cria o banco na primeira vez e sobe em http://127.0.0.1:5000)
-"""
 import os
 import secrets
 import sqlite3

@@ -1,5 +1,5 @@
 // Mensagens de validação em português. O navegador mostra os avisos dos campos no idioma dele
-// (às vezes em inglês e com a data no formato mês/dia); aqui trocamos pelo texto da clínica.
+// (às vezes em inglês e com a data no formato mês/dia) aqui trocamos pelo texto da clínica.
 (function () {
   function dataBR(valor) {
     // "2026-11-19" ou "2026-11-19T07:00" -> "19/11/2026" ou "19/11/2026 às 07:00"

@@ -46,8 +46,8 @@ Regras de negócio:
 ## Como executar
 
 ```bash
-git clone https://github.com/joaogab07/clinagenda.git
-cd clinagenda
+git clone https://github.com/joaogab07/clinagendafinal.git
+cd clinagendafinal
 python -m pip install -r requirements.txt
 python app.py
 ```
